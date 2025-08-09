@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   peerSet.add(server as unknown as WebSocket);
 
-  return new Response(null, { status: 101, webSocket: client });
+  return new Response(null, { status: 101, webSocket: client } as any);
 }
 
 
