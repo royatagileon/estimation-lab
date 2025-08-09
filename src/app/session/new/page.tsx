@@ -18,7 +18,8 @@ export default function NewSessionPage() {
           e.preventDefault();
           const workspaceId = 'demo';
           const res = await create.mutateAsync({ workspaceId, title, deckType: deck as 'FIBONACCI' | 'TSHIRT' | 'CUSTOM', privacy: 'PRIVATE' });
-          setResult({ link: res.shareLink, code: res.joinCode });
+          // redirect straight into session after creation
+          window.location.href = `/session/${res.id}`;
         }}
       >
         <div>
