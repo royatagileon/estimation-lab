@@ -33,7 +33,7 @@ export const appRouter = t.router({
       z.object({
         workspaceId: z.string(),
         title: z.string().min(1),
-        deckType: z.enum(['FIBONACCI', 'CUSTOM']).default('FIBONACCI'),
+         deckType: z.enum(['FIBONACCI', 'TSHIRT', 'CUSTOM']).default('FIBONACCI'),
         privacy: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
       }),
     )

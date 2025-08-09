@@ -42,6 +42,7 @@ enum ReasonPolarity {
 
 enum DeckType {
   FIBONACCI
+  TSHIRT
   CUSTOM
 }
 
@@ -259,6 +260,7 @@ model FinalDecision {
   decidedBy    String
   decidedAt    DateTime @default(now())
   summaryNotes String?
+  businessValue String?
 
   workItem      WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
   decidedByUser User     @relation("UserFinalDecisions", fields: [decidedBy], references: [id])

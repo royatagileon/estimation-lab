@@ -5,6 +5,7 @@ import { trpc } from '@/app/api/trpc/client';
 export default function NewSessionPage() {
   const [title, setTitle] = useState("");
   const [deck, setDeck] = useState("FIBONACCI");
+  const [businessValue, setBusinessValue] = useState<string | null>(null);
   // const utils = trpc.useUtils();
   const create = trpc.createSession.useMutation();
   const [result, setResult] = useState<{ link: string; code: string } | null>(null);
@@ -16,7 +17,7 @@ export default function NewSessionPage() {
         onSubmit={async (e) => {
           e.preventDefault();
           const workspaceId = 'demo';
-          const res = await create.mutateAsync({ workspaceId, title, deckType: deck as 'FIBONACCI' | 'CUSTOM', privacy: 'PRIVATE' });
+          const res = await create.mutateAsync({ workspaceId, title, deckType: deck as 'FIBONACCI' | 'TSHIRT' | 'CUSTOM', privacy: 'PRIVATE' });
           setResult({ link: res.shareLink, code: res.joinCode });
         }}
       >
@@ -25,11 +26,25 @@ export default function NewSessionPage() {
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border px-3 py-2 rounded" />
         </div>
         <div>
-          <label className="block text-sm font-medium">Deck</label>
+          <label className="block text-sm font-medium">Estimation Method</label>
           <select value={deck} onChange={(e) => setDeck(e.target.value)} className="w-full border px-3 py-2 rounded">
-            <option value="FIBONACCI">Fibonacci</option>
+            <option value="FIBONACCI">Refinement Poker (Relative Estimation)</option>
+            <option value="TSHIRT">Business Value Sizing (Affinity Estimation)</option>
           </select>
         </div>
+        {deck === 'TSHIRT' && (
+          <div>
+            <label className="block text-sm font-medium">Business Value (optional)</label>
+            <select value={businessValue ?? ''} onChange={(e) => setBusinessValue(e.target.value || null)} className="w-full border px-3 py-2 rounded">
+              <option value="">Not set</option>
+              <option>Not Sure</option>
+              <option>Very Low</option>
+              <option>Low</option>
+              <option>High</option>
+              <option>Very High</option>
+            </select>
+          </div>
+        )}
         <button className="inline-flex rounded bg-black text-white px-4 py-2">Create</button>
       </form>
       {result && (

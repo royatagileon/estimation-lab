@@ -1,8 +1,10 @@
-export type DeckType = 'FIBONACCI' | 'CUSTOM';
+export type DeckType = 'FIBONACCI' | 'TSHIRT' | 'CUSTOM';
 
 export const FIBONACCI_DECK = ['1', '2', '3', '5', '8', '13', '21'];
+export const TSHIRT_DECK = ['XS', 'S', 'M', 'L', 'XL'];
 
 export function getDeckValues(deckType: DeckType, custom?: string[]): string[] {
+  if (deckType === 'TSHIRT') return TSHIRT_DECK;
   if (deckType === 'CUSTOM') return custom && custom.length ? custom : FIBONACCI_DECK;
   return FIBONACCI_DECK;
 }
