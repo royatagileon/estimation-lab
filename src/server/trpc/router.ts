@@ -53,18 +53,33 @@ export const appRouter = t.router({
     .use(isAuthed)
     .input(
       z.object({
-        workspaceId: z.string(),
+        workspaceId: z.string().optional(),
+        workspaceSlug: z.string().default('demo'),
         title: z.string().min(1),
-         deckType: z.enum(['FIBONACCI', 'TSHIRT', 'CUSTOM']).default('FIBONACCI'),
+        deckType: z.enum(['FIBONACCI', 'TSHIRT', 'CUSTOM']).default('FIBONACCI'),
         privacy: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
+        customShareSlug: z.string().regex(/^[a-zA-Z0-9_-]{4,32}$/).optional(),
+        customJoinCode: z.string().regex(/^\d{6}$/).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const code = (Math.floor(100000 + Math.random() * 900000)).toString();
-      const shareSlug = nanoid(8);
+      // resolve workspace id (use provided id, else upsert by slug)
+      let workspaceId = input.workspaceId;
+      if (!workspaceId) {
+        const ws = await ctx.prisma.workspace.upsert({
+          where: { slug: input.workspaceSlug },
+          update: {},
+          create: { slug: input.workspaceSlug, name: input.workspaceSlug },
+        });
+        workspaceId = ws.id;
+      }
+
+      // generate or use provided codes
+      const code = input.customJoinCode ?? (Math.floor(100000 + Math.random() * 900000)).toString();
+      const shareSlug = input.customShareSlug ?? nanoid(8);
       const session = await ctx.prisma.session.create({
         data: {
-          workspaceId: input.workspaceId,
+          workspaceId,
           title: input.title,
           code,
           shareSlug,
