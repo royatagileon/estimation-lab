@@ -1,73 +1,74 @@
 "use client";
-import { useState } from 'react';
-import { trpc } from '@/app/api/trpc/client';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function NewSessionPage() {
-  const [title, setTitle] = useState("");
-  const [deck, setDeck] = useState("FIBONACCI");
-  const [customSlug, setCustomSlug] = useState("");
-  const [customCode, setCustomCode] = useState("");
-  // const utils = trpc.useUtils();
-  const create = trpc.createSession.useMutation();
-  const [result, setResult] = useState<{ link: string; code: string } | null>(null);
+  const r = useRouter();
+  const [title,setTitle] = useState("");
+  const [method,setMethod] = useState<"refinement_poker"|"business_value">("refinement_poker");
+  const [teamName,setTeamName] = useState("");
+  const [joinCode,setJoinCode] = useState("");
+
+  const disabled = title.trim().length < 3 || (joinCode && !/^\d{6}$/.test(joinCode));
+
+  async function create() {
+    const res = await fetch("/api/session", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ title, method, teamName, joinCode })
+    });
+    if (!res.ok) { alert("Could not create session"); return; }
+    const data = await res.json();
+    if (data.facilitatorToken) {
+      localStorage.setItem("facilitatorToken:"+data.id, data.facilitatorToken);
+    }
+    r.push(data.joinUrl);
+  }
+
   return (
-    <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold">New Session</h1>
-      <form
-        className="space-y-3"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const workspaceId = 'demo';
-          const res = await create.mutateAsync({
-            workspaceSlug: 'demo',
-            title,
-            deckType: deck as 'FIBONACCI' | 'TSHIRT' | 'CUSTOM',
-            privacy: 'PRIVATE',
-            customShareSlug: customSlug || undefined,
-            customJoinCode: customCode || undefined,
-          });
-          // redirect straight into session after creation
-          window.location.href = `/session/${res.id}`;
-        }}
-      >
+    <main className="mx-auto max-w-2xl p-6">
+      <h1 className="text-2xl font-semibold mb-2">Create a New Session</h1>
+      <p className="text-sm text-neutral-500 mb-6">Set up a session and share the link or code.</p>
+
+      <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium">Title</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border px-3 py-2 rounded" />
+          <label className="block text-sm font-medium mb-1">Session Title</label>
+          <input className="w-full rounded border px-3 py-2" value={title} onChange={e=>setTitle(e.target.value)} />
         </div>
+
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium mb-1">Choose a method</legend>
+          <label className={`flex gap-3 rounded border p-3 cursor-pointer ${method==="refinement_poker"?"ring-2":""}`}>
+            <input type="radio" checked={method==="refinement_poker"} onChange={()=>setMethod("refinement_poker")} />
+            <div>
+              <div className="font-medium">Refinement Poker</div>
+              <div className="text-sm text-neutral-500">Relative estimation with cards</div>
+            </div>
+          </label>
+          <label className={`flex gap-3 rounded border p-3 cursor-pointer ${method==="business_value"?"ring-2":""}`}>
+            <input type="radio" checked={method==="business_value"} onChange={()=>setMethod("business_value")} />
+            <div>
+              <div className="font-medium">Business Value Sizing</div>
+              <div className="text-sm text-neutral-500">Affinity value bands</div>
+            </div>
+          </label>
+        </fieldset>
+
         <div>
-          <label className="block text-sm font-medium">Estimation Method</label>
-          <select value={deck} onChange={(e) => setDeck(e.target.value)} className="w-full border px-3 py-2 rounded">
-            <option value="FIBONACCI">Refinement Poker (Relative Estimation)</option>
-            <option value="TSHIRT">Business Value Sizing (Affinity Estimation)</option>
-          </select>
+          <label className="block text-sm font-medium mb-1">Team Name</label>
+          <input className="w-full rounded border px-3 py-2" placeholder="optional" value={teamName} onChange={e=>setTeamName(e.target.value)} />
+          <p className="text-xs text-neutral-500 mt-1">Optional. Used in the share link with your six digit code.</p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium">Custom Share Slug (optional)</label>
-            <input value={customSlug} onChange={(e) => setCustomSlug(e.target.value)} placeholder="e.g. team-sprint-5" className="w-full border px-3 py-2 rounded" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Custom Join Code (6 digits, optional)</label>
-            <input value={customCode} onChange={(e) => setCustomCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="e.g. 482913" className="w-full border px-3 py-2 rounded" />
-          </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Join Code</label>
+          <input className="w-full rounded border px-3 py-2" placeholder="optional six digits" value={joinCode} onChange={e=>setJoinCode(e.target.value)} />
+          <p className="text-xs text-neutral-500 mt-1">If not provided, one is generated.</p>
         </div>
-        <button className="inline-flex rounded bg-black text-white px-4 py-2">Create</button>
-      </form>
-      {result && (
-        <div className="rounded border p-3 space-y-2">
-          <div className="text-sm">Share link:</div>
-          <div className="font-mono break-all">{result.link}</div>
-          <div className="text-sm">Join code:</div>
-          <div className="font-mono">{result.code}</div>
-          <button
-            className="mt-2 border rounded px-3 py-1"
-            onClick={() => navigator.clipboard.writeText(`${result.link} (code ${result.code})`)}
-          >
-            Copy
-          </button>
-        </div>
-      )}
-    </div>
+
+        <button disabled={disabled} onClick={create} className="w-full rounded bg-black text-white py-2 disabled:opacity-60">Create Session</button>
+      </div>
+    </main>
   );
 }
 

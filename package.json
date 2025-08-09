@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate || true && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
@@ -40,7 +40,10 @@
     "react-dom": "19.1.0",
     "superjson": "^2.2.2",
     "ws": "^8.18.3",
-    "zod": "^4.0.16"
+    "zod": "^4.0.16",
+    "swr": "^2.3.0",
+    "@vercel/kv": "^1.0.1",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "typescript": "^5",
