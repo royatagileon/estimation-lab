@@ -1,7 +1,7 @@
 import { RealtimeClient } from './client';
 
-export default function SessionBoardPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function SessionBoardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <div className="grid grid-cols-12 gap-4">
       <RealtimeClient sessionId={id} />
