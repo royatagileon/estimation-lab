@@ -1,0 +1,308 @@
+// Prisma schema for Estimation Lab
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  MEMBER
+  ADMIN
+}
+
+enum WorkspacePlan {
+  FREE
+  PRO
+}
+
+enum SessionState {
+  LOBBY
+  IN_PROGRESS
+  REVEALED
+  FINALIZED
+  ARCHIVED
+}
+
+enum PresenceStatus {
+  ONLINE
+  OFFLINE
+  AWAY
+}
+
+enum ReasonPolarity {
+  HIGH
+  LOW
+}
+
+enum DeckType {
+  FIBONACCI
+  CUSTOM
+}
+
+// Auth.js required models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Profile fields
+  displayName String?
+  screenName  String?  @unique
+  avatarUrl   String?
+  bio         String?
+  role        UserRole @default(MEMBER)
+  timeZone    String?  @db.Text
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  accounts           Account[]
+  sessions           SessionAuth[]
+  memberships        Membership[]
+  createdSessions    Session[]       @relation("UserCreatedSessions")
+  participants       Participant[]
+  auditEvents        AuditEvent[]    @relation("AuditActorUser")
+  finalDecisionsMade FinalDecision[] @relation("UserFinalDecisions")
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+  oauth_token_secret String?
+  oauth_token        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model SessionAuth {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// App models
+model Workspace {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  plan      WorkspacePlan @default(FREE)
+  createdAt DateTime      @default(now())
+  deletedAt DateTime?
+
+  memberships  Membership[]
+  sessions     Session[]
+  deckProfiles DeckProfile[]
+  auditEvents  AuditEvent[]
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        UserRole @default(MEMBER)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+model Session {
+  id          String       @id @default(cuid())
+  workspaceId String
+  title       String
+  code        String       @unique
+  shareSlug   String       @unique
+  deckType    DeckType     @default(FIBONACCI)
+  state       SessionState @default(LOBBY)
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator      User          @relation("UserCreatedSessions", fields: [createdBy], references: [id])
+  participants Participant[]
+  workItems    WorkItem[]
+}
+
+model Participant {
+  id             String         @id @default(cuid())
+  sessionId      String
+  userId         String?
+  guestName      String?
+  isFacilitator  Boolean        @default(false)
+  presenceStatus PresenceStatus @default(ONLINE)
+  joinedAt       DateTime       @default(now())
+  leftAt         DateTime?
+  deletedAt      DateTime?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id])
+
+  votes      Vote[]
+  reasons    Reason[]
+  objections Objection[]
+}
+
+model WorkItem {
+  id                 String    @id @default(cuid())
+  sessionId          String
+  externalKey        String?
+  title              String
+  description        String    @db.Text
+  acceptanceCriteria String?   @db.Text
+  tags               String[]
+  domain             String?
+  source             String?
+  createdAt          DateTime  @default(now())
+  deletedAt          DateTime?
+
+  session       Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  rounds        Round[]
+  finalDecision FinalDecision?
+  insights      Insight[]
+}
+
+model Round {
+  id          String    @id @default(cuid())
+  workItemId  String
+  roundNumber Int
+  status      String
+  startedAt   DateTime  @default(now())
+  revealedAt  DateTime?
+  finalizedAt DateTime?
+  deletedAt   DateTime?
+
+  workItem   WorkItem    @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  votes      Vote[]
+  reasons    Reason[]
+  objections Objection[]
+
+  @@unique([workItemId, roundNumber])
+}
+
+model Vote {
+  id            String    @id @default(cuid())
+  roundId       String
+  participantId String
+  value         String
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  round       Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, participantId])
+}
+
+model Reason {
+  id            String         @id @default(cuid())
+  roundId       String
+  participantId String
+  polarity      ReasonPolarity
+  text          String         @db.Text
+
+  round       Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, participantId, polarity])
+}
+
+model Objection {
+  id            String   @id @default(cuid())
+  roundId       String
+  participantId String
+  text          String   @db.Text
+  createdAt     DateTime @default(now())
+
+  round       Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+}
+
+model FinalDecision {
+  id           String   @id @default(cuid())
+  workItemId   String   @unique
+  value        String
+  decidedBy    String
+  decidedAt    DateTime @default(now())
+  summaryNotes String?
+
+  workItem      WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  decidedByUser User     @relation("UserFinalDecisions", fields: [decidedBy], references: [id])
+}
+
+model Insight {
+  id                 String   @id @default(cuid())
+  workItemId         String
+  suggestedValue     String?
+  similarityScore    Float?
+  similarWorkItemIds String[]
+  tags               String[]
+  modelVersion       String?
+  createdAt          DateTime @default(now())
+  vector             Float[]
+
+  workItem WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+}
+
+model DeckProfile {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  deckType         DeckType @default(FIBONACCI)
+  pointValue       String
+  commonWorkTraits String?  @db.Text
+  examples         String?  @db.Text
+  domainTag        String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, deckType, pointValue])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorUserId String?
+  guestName   String?
+  verb        String
+  objectType  String
+  objectId    String
+  meta        Json
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("AuditActorUser", fields: [actorUserId], references: [id])
+}
