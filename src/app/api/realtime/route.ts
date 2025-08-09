@@ -21,15 +21,13 @@ export async function GET(req: NextRequest) {
   const sessionId = searchParams.get('sessionId');
   if (!sessionId) return new Response('missing sessionId', { status: 400 });
 
-  // @ts-expect-error WebSocketPair is provided in the Edge runtime
-  const { 0: client, 1: server } = new WebSocketPair();
+  const { 0: client, 1: server } = (new (globalThis as any).WebSocketPair()) as any;
   const peerSet = sessions.get(sessionId) ?? new Set<WebSocket>();
   sessions.set(sessionId, peerSet);
 
-  // @ts-expect-error Edge runtime types
-  server.accept();
-  // @ts-expect-error Edge runtime types
-  server.addEventListener('message', (event: MessageEvent) => {
+  const serverAny = server as any;
+  serverAny.accept();
+  serverAny.addEventListener('message', (event: MessageEvent) => {
     try {
       const msg = JSON.parse(event.data as string) as RealtimeEvent;
       // fan-out restricted to session
@@ -38,8 +36,7 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
   });
-  // @ts-expect-error Edge runtime types
-  server.addEventListener('close', () => {
+  serverAny.addEventListener('close', () => {
     // keep map lightweight; clients removed on error/send too
   });
 
