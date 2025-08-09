@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import { signIn } from 'next-auth/react';
 import { trpc } from '@/app/api/trpc/client';
 
 export default function NewSessionPage() {
@@ -10,6 +11,7 @@ export default function NewSessionPage() {
   // const utils = trpc.useUtils();
   const create = trpc.createSession.useMutation();
   const [result, setResult] = useState<{ link: string; code: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   return (
     <div className="max-w-md space-y-4">
       <h1 className="text-xl font-semibold">New Session</h1>
@@ -17,17 +19,25 @@ export default function NewSessionPage() {
         className="space-y-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          const workspaceId = 'demo';
-          const res = await create.mutateAsync({
-            workspaceSlug: 'demo',
-            title,
-            deckType: deck as 'FIBONACCI' | 'TSHIRT' | 'CUSTOM',
-            privacy: 'PRIVATE',
-            customShareSlug: customSlug || undefined,
-            customJoinCode: customCode || undefined,
-          });
-          // redirect straight into session after creation
-          window.location.href = `/session/${res.id}`;
+          setError(null);
+          try {
+            const res = await create.mutateAsync({
+              workspaceSlug: 'demo',
+              title,
+              deckType: deck as 'FIBONACCI' | 'TSHIRT' | 'CUSTOM',
+              privacy: 'PRIVATE',
+              customShareSlug: customSlug || undefined,
+              customJoinCode: customCode || undefined,
+            });
+            // redirect straight into session after creation
+            window.location.href = `/session/${res.id}`;
+          } catch (err: any) {
+            if (err?.data?.code === 'UNAUTHORIZED') {
+              signIn(undefined, { callbackUrl: '/session/new' });
+            } else {
+              setError(err?.message ?? 'Failed to create session');
+            }
+          }
         }}
       >
         <div>
@@ -52,6 +62,7 @@ export default function NewSessionPage() {
           </div>
         </div>
         <button className="inline-flex rounded bg-black text-white px-4 py-2">Create</button>
+        {error && <div className="text-sm text-red-600">{error}</div>}
       </form>
       {result && (
         <div className="rounded border p-3 space-y-2">
