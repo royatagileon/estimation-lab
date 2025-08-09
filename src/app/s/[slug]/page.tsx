@@ -8,8 +8,9 @@ async function fetchId(slug: string) {
   return data?.id ?? null;
 }
 
-export default async function SharePage({ params }: { params: { slug: string } }) {
-  const id = await fetchId(params.slug);
+export default async function SharePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const id = await fetchId(slug);
   if (id) redirect("/session/"+id);
   redirect("/join");
 }
