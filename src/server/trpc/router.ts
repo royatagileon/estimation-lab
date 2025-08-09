@@ -27,6 +27,28 @@ export const appRouter = t.router({
 
   currentUser: t.procedure.query(({ ctx }) => ({ user: ctx.session?.user ?? null })),
 
+    getSession: t.procedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const session = await ctx.prisma.session.findUnique({
+          where: { id: input.id },
+          include: {
+            participants: true,
+          },
+        });
+        if (!session) throw new TRPCError({ code: 'NOT_FOUND' });
+        const base = resolveBaseUrl(ctx);
+        const shareLink = `${base}/join/${session.shareSlug}`;
+        return {
+          id: session.id,
+          title: session.title,
+          deckType: session.deckType,
+          shareLink,
+          joinCode: session.code,
+          participants: session.participants.map((p) => ({ id: p.id, name: p.guestName ?? null, userId: p.userId })),
+        };
+      }),
+
   createSession: t.procedure
     .use(isAuthed)
     .input(
@@ -50,9 +72,17 @@ export const appRouter = t.router({
           createdBy: ctx.session!.user.id,
         },
       });
+      // creator becomes facilitator participant
+      const facilitator = await ctx.prisma.participant.create({
+        data: {
+          sessionId: session.id,
+          userId: ctx.session!.user.id,
+          isFacilitator: true,
+        },
+      });
       const base = resolveBaseUrl(ctx);
       const link = `${base}/join/${shareSlug}`;
-      return { id: session.id, shareLink: link, joinCode: code };
+      return { id: session.id, participantId: facilitator.id, shareLink: link, joinCode: code };
     }),
 
   joinSessionByCode: t.procedure
@@ -202,6 +232,7 @@ export const appRouter = t.router({
       workItemId: z.string(),
       decidedBy: z.string(),
       value: z.string(),
+      businessValue: z.string().optional(),
       summaryNotes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -225,8 +256,8 @@ export const appRouter = t.router({
 
       const fd = await ctx.prisma.finalDecision.upsert({
         where: { workItemId: input.workItemId },
-        create: { workItemId: input.workItemId, value: input.value, decidedBy: input.decidedBy, summaryNotes: input.summaryNotes },
-        update: { value: input.value, summaryNotes: input.summaryNotes },
+        create: { workItemId: input.workItemId, value: input.value, businessValue: input.businessValue, decidedBy: input.decidedBy, summaryNotes: input.summaryNotes },
+        update: { value: input.value, businessValue: input.businessValue, summaryNotes: input.summaryNotes },
       });
 
       // record short summary on insight
