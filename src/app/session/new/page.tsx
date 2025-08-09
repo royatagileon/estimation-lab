@@ -9,7 +9,7 @@ export default function NewSessionPage() {
   const [teamName,setTeamName] = useState("");
   const [joinCode,setJoinCode] = useState("");
 
-  const disabled = title.trim().length < 3 || (joinCode && !/^\d{6}$/.test(joinCode));
+  const disabled = title.trim().length < 3 || (!!joinCode && !/^\d{6}$/.test(joinCode));
 
   async function create() {
     const res = await fetch("/api/session", {
