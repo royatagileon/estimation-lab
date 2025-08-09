@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from './providers';
+import Link from 'next/link';
 import { AuthButtons } from './components/AuthButtons';
 
 const geistSans = Geist({
@@ -30,10 +31,10 @@ export default function RootLayout({
         <Providers>
           <div className="mx-auto max-w-7xl p-4">
             <header className="flex items-center justify-between py-4">
-              <a href="/" className="font-semibold">Estimation Lab</a>
+              <Link href="/" className="font-semibold">Estimation Lab</Link>
               <nav className="text-sm text-gray-500 space-x-4 flex items-center gap-4">
-                <a href="/join" className="hover:underline">Join</a>
-                <a href="/admin" className="hover:underline">Admin</a>
+                <Link href="/join" className="hover:underline">Join</Link>
+                <Link href="/admin" className="hover:underline">Admin</Link>
                 <AuthButtons />
               </nav>
             </header>

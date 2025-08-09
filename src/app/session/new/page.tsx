@@ -5,7 +5,7 @@ import { trpc } from '@/app/api/trpc/client';
 export default function NewSessionPage() {
   const [title, setTitle] = useState("");
   const [deck, setDeck] = useState("FIBONACCI");
-  const utils = trpc.useUtils();
+  // const utils = trpc.useUtils();
   const create = trpc.createSession.useMutation();
   const [result, setResult] = useState<{ link: string; code: string } | null>(null);
   return (
@@ -16,7 +16,7 @@ export default function NewSessionPage() {
         onSubmit={async (e) => {
           e.preventDefault();
           const workspaceId = 'demo';
-          const res = await create.mutateAsync({ workspaceId, title, deckType: deck as any, privacy: 'PRIVATE' });
+          const res = await create.mutateAsync({ workspaceId, title, deckType: deck as 'FIBONACCI' | 'CUSTOM', privacy: 'PRIVATE' });
           setResult({ link: res.shareLink, code: res.joinCode });
         }}
       >

@@ -5,7 +5,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import { prisma } from '@/server/db';
 
 const hasDb = Boolean(process.env.DATABASE_URL);
-const providers = [] as any[];
+const providers: Array<ReturnType<typeof EmailProvider> | ReturnType<typeof GoogleProvider>> = [];
 
 // Only include Email provider when SMTP is configured
 if (process.env.EMAIL_SERVER_HOST && process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD && process.env.EMAIL_FROM) {
@@ -41,9 +41,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, user, token }) {
       if (hasDb) {
-        if (session.user) (session.user as any).id = user.id;
+        if (session.user) (session.user as unknown as { id?: string }).id = user.id;
       } else {
-        if (session.user && token) (session.user as any).id = (token as any).sub;
+        if (session.user && token) (session.user as unknown as { id?: string }).id = (token as unknown as { sub?: string }).sub ?? '';
       }
       return session;
     },

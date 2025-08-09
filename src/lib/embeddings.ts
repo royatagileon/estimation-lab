@@ -2,12 +2,13 @@ import { pipeline } from '@xenova/transformers';
 
 type Provider = 'local' | 'openai' | 'azureopenai';
 
-let localEmbedder: any | null = null;
+type LocalEmbedder = (text: string, options: { pooling: 'mean'; normalize: boolean }) => Promise<{ data: Float32Array }>;
+let localEmbedder: LocalEmbedder | null = null;
 
-async function getLocalEmbedder() {
+async function getLocalEmbedder(): Promise<LocalEmbedder> {
   if (!localEmbedder) {
     // Lightweight all-MiniLM-L6-v2 equivalent
-    localEmbedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+    localEmbedder = (await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')) as unknown as LocalEmbedder;
   }
   return localEmbedder;
 }

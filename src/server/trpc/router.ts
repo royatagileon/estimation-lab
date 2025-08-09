@@ -253,12 +253,12 @@ export const appRouter = t.router({
       });
       const scores = others
         .filter((o) => o.vector && o.vector.length === thisInsight.vector.length)
-        .map((o) => ({ o, s: cosineSimilarity(thisInsight.vector as any, o.vector as any) }))
+        .map((o) => ({ o, s: cosineSimilarity(thisInsight.vector as number[], o.vector as number[]) }))
         .sort((a, b) => b.s - a.s)
         .slice(0, 5);
       const similar = scores.map(({ o, s }) => ({ id: o.workItemId, title: o.workItem.title, value: o.workItem.finalDecision?.value ?? null, score: s }));
       const deck = getDeckValues(wi.session.deckType as any);
-      const values = similar.map((x) => Number(x.value ?? 0));
+      // const values = similar.map((x) => Number(x.value ?? 0));
       const sumScores = scores.reduce((a, b) => a + b.s, 0) || 1;
       const weighted = scores.reduce((acc, cur) => acc + (Number(cur.o.workItem.finalDecision?.value ?? 0) * cur.s), 0) / sumScores;
       const suggestedValue = isFinite(weighted) && weighted > 0 ? `${nearest(deck, weighted)}` : null;
@@ -318,7 +318,7 @@ export const appRouter = t.router({
         transcriptLink: `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/session/${r.sessionId}`,
       }));
       const headers = Object.keys(csvRows[0] ?? { title: '' });
-      const csv = [headers.join(','), ...csvRows.map((r) => headers.map((h) => JSON.stringify((r as any)[h] ?? '')).join(','))].join('\n');
+      const csv = [headers.join(','), ...csvRows.map((r) => headers.map((h) => JSON.stringify((r as Record<string, unknown>)[h] ?? '')).join(','))].join('\n');
       return { csv };
     }),
 });
