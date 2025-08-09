@@ -1,7 +1,8 @@
 import { JoinSlugClient } from './client';
 
-export default function JoinSlugPage({ params }: { params: { slug: string } }) {
-  return <JoinSlugClient slug={params.slug} />;
+export default async function JoinSlugPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <JoinSlugClient slug={slug} />;
 }
 
 
