@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import kv from "@/lib/kv";
 import type { Session, FibCard } from "@/lib/types";
 
-export async function POST(req: NextRequest, { params }:{ params:{ id:string }}) {
+export async function POST(req: NextRequest, ctx: any) {
+  const { params } = ctx as { params: { id: string } };
   const { participantId, value } = await req.json();
   const s = await kv.get<Session>(`sess:${params.id}`);
   if (!s) return NextResponse.json({ error: "not found" }, { status: 404 });

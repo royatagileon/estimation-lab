@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 
 async function fetchId(slug: string) {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || "";
-  const url = `${base}/api/session/by-slug/${encodeURIComponent(slug)}`;
+  const url = `/api/session/by-slug/${encodeURIComponent(slug)}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
   const data = await res.json();
