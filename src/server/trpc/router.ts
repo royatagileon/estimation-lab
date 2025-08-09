@@ -10,6 +10,13 @@ import { rateLimitKey } from './ratelimit';
 
 const t = initTRPC.context<Context>().create({ transformer: superjson });
 
+function resolveBaseUrl(ctx: Context): string {
+  const proto = ctx.headers.get('x-forwarded-proto') || 'http';
+  const host = ctx.headers.get('x-forwarded-host') || ctx.headers.get('host');
+  if (host) return `${proto}://${host}`;
+  return process.env.APP_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+}
+
 const isAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session?.user) throw new TRPCError({ code: 'UNAUTHORIZED' });
   return next();
@@ -43,7 +50,8 @@ export const appRouter = t.router({
           createdBy: ctx.session!.user.id,
         },
       });
-      const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/join/${shareSlug}`;
+      const base = resolveBaseUrl(ctx);
+      const link = `${base}/join/${shareSlug}`;
       return { id: session.id, shareLink: link, joinCode: code };
     }),
 
@@ -315,7 +323,7 @@ export const appRouter = t.router({
         finalValue: r.finalDecision?.value ?? '',
         reasonsSummary: r.rounds.flatMap((ro) => ro.reasons.map((x) => x.text)).join(' | '),
         objectionCount: r.rounds.reduce((a, b) => a + b.objections.length, 0),
-        transcriptLink: `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/session/${r.sessionId}`,
+        transcriptLink: `${resolveBaseUrl(ctx)}/session/${r.sessionId}`,
       }));
       const headers = Object.keys(csvRows[0] ?? { title: '' });
       const csv = [headers.join(','), ...csvRows.map((r) => headers.map((h) => JSON.stringify((r as Record<string, unknown>)[h] ?? '')).join(','))].join('\n');
