@@ -20,6 +20,22 @@ export function SessionView({ id }: { id: string }) {
   const [displayName, setDisplayName] = useState('');
   const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
 
+  // Derivations and effects must be declared before any return
+  const numericVotes = useMemo(() => {
+    const participants = (s?.participants ?? []) as Array<any>;
+    return participants
+      .map((p:any)=> Number(p.vote))
+      .filter((v:number)=> !isNaN(v) && v>0);
+  }, [s?.participants]);
+  const unanimous = useMemo(() => numericVotes.length>0 && numericVotes.every(v=>v===numericVotes[0]), [numericVotes]);
+  useEffect(() => {
+    if (s?.round?.status === 'revealed' && unanimous) {
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({ origin: { y: 1.1 }, startVelocity: 20, spread: 80, scalar: 0.8, particleCount: 120 });
+      }).catch(() => {});
+    }
+  }, [s?.round?.status, unanimous]);
+
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
 
@@ -80,21 +96,7 @@ export function SessionView({ id }: { id: string }) {
   async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal', actorParticipantId: myPid }) }); }
   async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote', actorParticipantId: myPid }) }); }
 
-  const numericVotes = useMemo(() => {
-    return s.participants
-      .map((p:any)=> Number(p.vote))
-      .filter((v:number)=> !isNaN(v) && v>0);
-  }, [s.participants]);
-  const unanimous = useMemo(() => numericVotes.length>0 && numericVotes.every(v=>v===numericVotes[0]), [numericVotes]);
-
-  useEffect(() => {
-    if (s.round.status === 'revealed' && unanimous) {
-      // confetti when all the same
-      import('canvas-confetti').then(({ default: confetti }) => {
-        confetti({ origin: { y: 1.1 }, startVelocity: 20, spread: 80, scalar: 0.8, particleCount: 120 });
-      }).catch(() => {});
-    }
-  }, [s.round.status, unanimous]);
+  // numericVotes/unanimous/useEffect already declared above for stable hook order
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
