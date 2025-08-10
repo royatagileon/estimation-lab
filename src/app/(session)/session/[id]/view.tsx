@@ -19,6 +19,11 @@ export function SessionView({ id }: { id: string }) {
   const [joining, setJoining] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
+  // Inline editor state (facilitator only)
+  const [showEditor, setShowEditor] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [criteria, setCriteria] = useState<string[]>([]);
 
   // Derivations and effects must be declared before any return
   const numericVotes = useMemo(() => {
@@ -86,25 +91,23 @@ export function SessionView({ id }: { id: string }) {
     });
   }
 
-  async function startRound() {
+  function openEditor() {
     if (!iAmFacilitator) return;
-    const title = prompt('Work item title') || '';
-    if (!title.trim()) return;
-    const description = prompt('Description (multi-line allowed)') || '';
-    if (!description.trim()) return;
-    let lines: string[] = [];
-    // simple iterative entry for acceptance criteria; user types each line until empty or "done"
-    // We keep prompt-based UX for now to avoid modals; can replace with an inline editor later
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const next = prompt('Add acceptance criteria item (leave blank or type "done" to finish)') || '';
-      const trimmed = next.trim();
-      if (!trimmed || trimmed.toLowerCase() === 'done') break;
-      lines.push(trimmed);
-      if (lines.length >= 20) break;
-    }
-    const ac = lines.join('\n');
+    setEditTitle(s?.round.itemTitle || '');
+    setEditDesc(s?.round.itemDescription || '');
+    setCriteria((s?.round.acceptanceCriteria || '').split('\n').filter(Boolean));
+    setShowEditor(true);
+  }
+  async function submitEditor() {
+    if (!iAmFacilitator) return;
+    const title = editTitle.trim();
+    const description = editDesc.trim();
+    const list = criteria.map(c => c.trim()).filter(Boolean);
+    if (!title || !description || list.length === 0) return;
+    const ac = list.join('\n');
     await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid }) });
+    setShowEditor(false);
+    mutate();
   }
   async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal', actorParticipantId: myPid }) }); }
   async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote', actorParticipantId: myPid }) }); }
@@ -135,7 +138,7 @@ export function SessionView({ id }: { id: string }) {
         )}
         {iAmFacilitator && (
           <div className="mt-3">
-            <button className="border rounded px-3 py-2 w-full" onClick={startRound}>New Work Item</button>
+            <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>New Work Item</button>
           </div>
         )}
       </aside>
@@ -143,7 +146,36 @@ export function SessionView({ id }: { id: string }) {
       <main className="md:col-span-4 surface p-5 rounded-2xl">
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
-        {s.round.itemTitle && (
+        {showEditor ? (
+          <div className="mb-4 space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Title</label>
+              <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40" value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Acceptance criteria</label>
+              <div className="space-y-2">
+                {criteria.map((c, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{
+                      const next=[...criteria]; next[idx]=e.target.value; setCriteria(next);
+                    }} />
+                    <button className="text-xs underline" onClick={()=>{ const next=criteria.slice(); next.splice(idx,1); setCriteria(next); }}>Remove</button>
+                  </div>
+                ))}
+                <button className="rounded-full border px-3 py-1.5 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>Start</button>
+              <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : s.round.itemTitle && (
           <div className="mb-3">
             <div className="font-medium">{s.round.itemTitle}</div>
             {s.round.itemDescription && <div className="text-sm text-neutral-600 whitespace-pre-wrap">{s.round.itemDescription}</div>}
