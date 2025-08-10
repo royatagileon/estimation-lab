@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import type { Session } from "@/lib/types";
@@ -11,7 +12,7 @@ function slugifyTeam(team?: string) {
 }
 
 export function SessionView({ id }: { id: string }) {
-  const { data: s, isLoading } = useSWR<Session>(`/api/session/${id}`, fetcher, { refreshInterval: 1000 });
+  const { data: s, isLoading, mutate } = useSWR<Session>(`/api/session/${id}`, fetcher, { refreshInterval: 1000 });
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
 
@@ -25,6 +26,33 @@ export function SessionView({ id }: { id: string }) {
 
   const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
+
+  const [joining, setJoining] = useState(false);
+  useEffect(() => {
+    if (!s) return;
+    if (typeof window === 'undefined') return;
+    const existing = localStorage.getItem('pid:' + s.id);
+    if (existing || joining) return;
+    // Prompt for display name and auto-join creator into the session
+    setJoining(true);
+    const name = window.prompt('Enter your display name') || 'Guest';
+    (async () => {
+      try {
+        const res = await fetch('/api/session/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: s.code, name })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem('pid:' + s.id, data.participantId);
+          await mutate();
+        }
+      } finally {
+        setJoining(false);
+      }
+    })();
+  }, [s, joining, mutate]);
 
   async function vote(v: string | number) {
     if (!myPid) return;
