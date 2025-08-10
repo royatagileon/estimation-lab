@@ -40,11 +40,7 @@ export function SessionView({ id }: { id: string }) {
       const name = window.prompt('Enter your display name') || 'Guest';
       (async () => {
         try {
-          const res = await fetch('/api/session/join', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: s.code, name })
-          });
+          const res = await fetch(`/api/session/${s.id}/self-join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
           if (res.ok) {
             const data = await res.json();
             localStorage.setItem('pid:' + s.id, data.participantId);
