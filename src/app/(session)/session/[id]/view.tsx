@@ -74,8 +74,8 @@ export function SessionView({ id }: { id: string }) {
   async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote', actorParticipantId: myPid }) }); }
 
   return (
-    <div className="grid grid-cols-12 gap-4">
-      <aside className="col-span-3 border rounded p-3">
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+      <aside className="md:col-span-4 surface p-5 rounded-2xl">
         <h2 className="font-semibold mb-2">Participants</h2>
         <ul className="text-sm space-y-1">
           {s.participants.map((p: any) => (
@@ -102,7 +102,7 @@ export function SessionView({ id }: { id: string }) {
         )}
       </aside>
 
-      <main className="col-span-6 border rounded p-3">
+      <main className="md:col-span-4 surface p-5 rounded-2xl">
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         {s.round.itemTitle && (
@@ -117,14 +117,14 @@ export function SessionView({ id }: { id: string }) {
             )}
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-4 gap-3">
           {deck.map(v => {
             const selected = myPid && s.participants.some((p: any)=> p.id===myPid && String(p.vote)===String(v));
             return (
               <motion.button
                 key={String(v)}
                 whileTap={{ scale: 0.98 }}
-                className={`flex-1 border rounded py-6 text-lg select-none focus-ring ${selected? 'bg-green-500 text-white border-green-500': ''}`}
+                className={`h-11 rounded-xl border text-sm font-medium select-none focus-ring grid place-items-center ${selected? 'bg-green-500 text-white border-green-500': 'hover:bg-slate-800/40'}`}
                 aria-label={`vote ${v}`}
                 onClick={()=>vote(v as any)}
               >
@@ -154,7 +154,7 @@ export function SessionView({ id }: { id: string }) {
         </div>
       </main>
 
-      <aside className="col-span-3 border rounded p-3">
+      <aside className="md:col-span-4 surface p-5 rounded-2xl">
         <h2 className="font-semibold mb-2">Similar Items</h2>
         <p className="text-sm text-gray-500">Model suggestion and neighbors…</p>
         {s.finalizedItems && s.finalizedItems.length > 0 && (

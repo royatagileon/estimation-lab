@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 
-export function ThemeSwitcher() {
+export function ThemeSwitcher({ showLabel = false }: { showLabel?: boolean }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   useEffect(() => {
     const m = window.matchMedia('(prefers-color-scheme: dark)');
@@ -16,9 +16,11 @@ export function ThemeSwitcher() {
     localStorage.setItem('theme', next);
     document.documentElement.classList.toggle('dark', next === 'dark');
   }
+  const label = theme === 'dark' ? 'Light theme' : 'Dark theme';
   return (
-    <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-lg hover:bg-muted">
-      {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+    <button onClick={toggle} aria-label={label} className={`rounded-full border px-3 py-1.5 text-sm hover:bg-muted inline-flex items-center gap-2`}>
+      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {showLabel && <span>{label}</span>}
     </button>
   );
 }
