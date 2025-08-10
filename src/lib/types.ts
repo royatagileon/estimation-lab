@@ -12,6 +12,13 @@ export type Round = {
   itemTitle?: string;
   itemDescription?: string;
   acceptanceCriteria?: string;
+  results?: {
+    allVoted: boolean;
+    withinWindow: boolean;
+    average?: number;
+    rounded?: number; // mapped deck value for refinement poker
+    unanimous?: boolean;
+  };
 };
 
 export type Session = {

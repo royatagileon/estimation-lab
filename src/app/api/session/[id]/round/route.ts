@@ -23,6 +23,7 @@ export async function POST(req: NextRequest, ctx: any) {
       acceptanceCriteria: String(body.acceptanceCriteria || "").slice(0, 5000),
     };
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
+    s.round.results = undefined;
   } else if (body.action === "reveal") {
     if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -40,18 +41,19 @@ export async function POST(req: NextRequest, ctx: any) {
         const indexOf = (n: number) => fibDeck.findIndex(x => x === n);
         const indices = numericVotes.map(indexOf).filter(i => i >= 0).sort((a,b)=>a-b);
         const withinThreeWindow = indices.length > 0 && (indices[indices.length - 1] - indices[0] <= 2);
+        const unanimous = numericVotes.every(v => v === numericVotes[0]);
+
+        const avg = numericVotes.reduce((a,b)=>a+b,0) / numericVotes.length;
+        const roundedUp = Math.ceil(avg);
+        s.round.results = { allVoted, withinWindow: withinThreeWindow, average: avg, rounded: roundedUp, unanimous };
 
         if (withinThreeWindow) {
-          const avg = numericVotes.reduce((a,b)=>a+b,0) / numericVotes.length;
-          // Round up to next whole number (e.g., 6.1 -> 7, 6.5 -> 7)
-          const rounded = Math.ceil(avg);
-
           s.finalizedItems = s.finalizedItems ?? [];
           s.finalizedItems.push({
             title: s.round.itemTitle ?? s.title,
             description: s.round.itemDescription,
             acceptanceCriteria: s.round.acceptanceCriteria,
-            value: String(rounded),
+            value: String(roundedUp),
             average: avg,
             decidedAt: Date.now(),
           });
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest, ctx: any) {
     }
     if (s.round.itemTitle) {
       s.round.status = "voting";
+      s.round.results = undefined;
       s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
     }
   }

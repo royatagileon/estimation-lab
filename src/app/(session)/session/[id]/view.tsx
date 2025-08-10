@@ -89,8 +89,21 @@ export function SessionView({ id }: { id: string }) {
   async function startRound() {
     if (!iAmFacilitator) return;
     const title = prompt('Work item title') || '';
-    const description = prompt('Description (optional)') || '';
-    const ac = prompt('Acceptance criteria (optional)') || '';
+    if (!title.trim()) return;
+    const description = prompt('Description (multi-line allowed)') || '';
+    if (!description.trim()) return;
+    let lines: string[] = [];
+    // simple iterative entry for acceptance criteria; user types each line until empty or "done"
+    // We keep prompt-based UX for now to avoid modals; can replace with an inline editor later
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const next = prompt('Add acceptance criteria item (leave blank or type "done" to finish)') || '';
+      const trimmed = next.trim();
+      if (!trimmed || trimmed.toLowerCase() === 'done') break;
+      lines.push(trimmed);
+      if (lines.length >= 20) break;
+    }
+    const ac = lines.join('\n');
     await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid }) });
   }
   async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal', actorParticipantId: myPid }) }); }
@@ -179,13 +192,24 @@ export function SessionView({ id }: { id: string }) {
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
-        <AnimatePresence>
-          {s.round.status === 'revealed' && !unanimous && (
-            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 p-3 text-sm">
-              Spread detected. Consider a short discussion, then press Revote.
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Results box (persistent) */}
+        <div className="mt-3">
+          <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm">
+            <div className="text-xs font-medium mb-1">Results</div>
+            {s.round.status === 'revealed' && s.round.results?.allVoted && (
+              <div>
+                {s.round.results.unanimous ? (
+                  <div className="text-emerald-300">Unanimous! Everyone selected the same card.</div>
+                ) : s.round.results.withinWindow ? (
+                  <div className="text-emerald-300">Finalized at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
+                ) : (
+                  <div className="text-amber-200">Spread detected. Consider a short discussion, then press Revote.</div>
+                )}
+              </div>
+            )}
+            {s.round.status !== 'revealed' && <div className="text-slate-400">Waiting for Reveal…</div>}
+          </motion.div>
+        </div>
       </main>
 
       <aside className="md:col-span-4 surface p-5 rounded-2xl">
