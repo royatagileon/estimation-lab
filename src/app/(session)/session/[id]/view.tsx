@@ -29,29 +29,35 @@ export function SessionView({ id }: { id: string }) {
 
   const [joining, setJoining] = useState(false);
   useEffect(() => {
-    if (!s) return;
-    if (typeof window === 'undefined') return;
-    const existing = localStorage.getItem('pid:' + s.id);
-    if (existing || joining) return;
-    // Prompt for display name and auto-join creator into the session
-    setJoining(true);
-    const name = window.prompt('Enter your display name') || 'Guest';
-    (async () => {
-      try {
-        const res = await fetch('/api/session/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: s.code, name })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          localStorage.setItem('pid:' + s.id, data.participantId);
-          await mutate();
+    try {
+      if (!s) return;
+      if (typeof window === 'undefined') return;
+      const existing = localStorage.getItem('pid:' + s.id);
+      const alreadyJoined = sessionStorage.getItem('joined:' + s.id) === '1';
+      if (existing || joining || alreadyJoined) return;
+      if (!/^\d{6}$/.test(String(s.code))) return;
+      setJoining(true);
+      const name = window.prompt('Enter your display name') || 'Guest';
+      (async () => {
+        try {
+          const res = await fetch('/api/session/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: s.code, name })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('pid:' + s.id, data.participantId);
+            sessionStorage.setItem('joined:' + s.id, '1');
+            await mutate();
+          }
+        } finally {
+          setJoining(false);
         }
-      } finally {
-        setJoining(false);
-      }
-    })();
+      })();
+    } catch {
+      // ignore
+    }
   }, [s, joining, mutate]);
 
   async function vote(v: string | number) {
