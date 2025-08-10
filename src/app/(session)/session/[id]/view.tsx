@@ -36,7 +36,13 @@ export function SessionView({ id }: { id: string }) {
   useEffect(() => {
     if (s?.round?.status === 'revealed' && unanimous) {
       import('canvas-confetti').then(({ default: confetti }) => {
-        confetti({ origin: { y: 1.1 }, startVelocity: 20, spread: 80, scalar: 0.8, particleCount: 120 });
+        const duration = 1200;
+        const end = Date.now() + duration;
+        const frame = () => {
+          confetti({ particleCount: 120, spread: 100, startVelocity: 40, scalar: 1, ticks: 200, origin: { x: Math.random(), y: Math.random()*0.2 + 0.1 } });
+          if (Date.now() < end) requestAnimationFrame(frame);
+        };
+        frame();
       }).catch(() => {});
     }
   }, [s?.round?.status, unanimous]);
@@ -226,20 +232,28 @@ export function SessionView({ id }: { id: string }) {
 
         {/* Results box (persistent) */}
         <div className="mt-3">
-          <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm">
+          <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm bg-[--color-warn-bg] text-[--color-warn-fg] dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/30">
             <div className="text-xs font-medium mb-1">Results</div>
             {s.round.status === 'revealed' && s.round.results?.allVoted && (
               <div>
                 {s.round.results.unanimous ? (
                   <div className="text-emerald-300">Unanimous! Everyone selected the same card.</div>
                 ) : s.round.results.withinWindow ? (
-                  <div className="text-emerald-300">Finalized at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
+                  <div className="text-emerald-700 dark:text-emerald-300">Ready to finalize at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
                 ) : (
                   <div className="text-amber-200">Spread detected. Consider a short discussion, then press Revote.</div>
                 )}
               </div>
             )}
             {s.round.status !== 'revealed' && <div className="text-slate-400">Waiting for Reveal…</div>}
+            {iAmFacilitator && s.round.status === 'revealed' && s.round.results?.withinWindow && (
+              <div className="mt-2">
+                <button className="rounded-xl bg-emerald-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
+                  await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'finalize_confirm', actorParticipantId: myPid }) });
+                  mutate();
+                }}>Confirm finalize</button>
+              </div>
+            )}
           </motion.div>
         </div>
       </main>

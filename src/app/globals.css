@@ -11,6 +11,8 @@
   --card: 0 0% 100%;
   --accent: 213 94% 68%;
   --success: 142 72% 29%;
+  --warn-bg: 48 96% 93%;
+  --warn-fg: 32 95% 30%;
   --ring: 217 91% 60%;
 
   /* Radius */
@@ -39,6 +41,8 @@
   --color-muted: hsl(var(--muted));
   --color-accent: hsl(var(--accent));
   --color-success: hsl(var(--success));
+  --color-warn-bg: hsl(var(--warn-bg));
+  --color-warn-fg: hsl(var(--warn-fg));
   --shadow-1: var(--elevation-1);
   --shadow-2: var(--elevation-2);
   --radius: var(--radius-lg);

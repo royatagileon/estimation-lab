@@ -48,18 +48,8 @@ export async function POST(req: NextRequest, ctx: any) {
         s.round.results = { allVoted, withinWindow: withinThreeWindow, average: avg, rounded: roundedUp, unanimous };
 
         if (withinThreeWindow) {
-          s.finalizedItems = s.finalizedItems ?? [];
-          s.finalizedItems.push({
-            title: s.round.itemTitle ?? s.title,
-            description: s.round.itemDescription,
-            acceptanceCriteria: s.round.acceptanceCriteria,
-            value: String(roundedUp),
-            average: avg,
-            decidedAt: Date.now(),
-          });
-
-          s.round = { status: "idle" };
-          s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
+          // Do NOT auto-finalize. Require facilitator confirmation via a separate action.
+          // Result summary already recorded in s.round.results
         }
       }
     }
@@ -72,6 +62,27 @@ export async function POST(req: NextRequest, ctx: any) {
       s.round.results = undefined;
       s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
     }
+  }
+
+  if (body.action === "finalize_confirm") {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    const res = s.round.results;
+    if (!res || !res.allVoted || !res.withinWindow || res.rounded === undefined) {
+      return NextResponse.json({ error: "not_finalizable" }, { status: 400 });
+    }
+    s.finalizedItems = s.finalizedItems ?? [];
+    s.finalizedItems.push({
+      title: s.round.itemTitle ?? s.title,
+      description: s.round.itemDescription,
+      acceptanceCriteria: s.round.acceptanceCriteria,
+      value: String(res.rounded),
+      average: res.average ?? 0,
+      decidedAt: Date.now(),
+    });
+    s.round = { status: "idle" };
+    s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   }
 
   await sql`update sessions set data = ${JSON.stringify(s)}::jsonb where id = ${params.id}`;
