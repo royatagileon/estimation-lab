@@ -50,8 +50,8 @@ export default function RootLayout({
             <footer className="border-t py-6 text-xs text-muted-foreground flex items-center justify-between">
               <span>Estimate together with clarity and speed.</span>
               <span className="space-x-3">
-                <Link href="/terms" className="hover:underline">Terms</Link>
-                <Link href="/privacy" className="hover:underline">Privacy</Link>
+                <Link href="/terms" prefetch className="hover:underline">Terms</Link>
+                <Link href="/privacy" prefetch className="hover:underline">Privacy</Link>
               </span>
             </footer>
           </div>
