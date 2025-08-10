@@ -1,4 +1,5 @@
 export const runtime = 'edge';
+export const preferredRegion = 'auto';
 
 import { NextRequest } from 'next/server';
 import { RealtimeEvent } from '@/server/realtime/events';
@@ -17,6 +18,10 @@ function broadcast(sessionId: string, data: RealtimeEvent) {
 }
 
 export async function GET(req: NextRequest) {
+  const upgradeHeader = req.headers.get('upgrade') || '';
+  if (upgradeHeader.toLowerCase() !== 'websocket') {
+    return new Response('Expected WebSocket', { status: 426 });
+  }
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get('sessionId');
   if (!sessionId) return new Response('missing sessionId', { status: 400 });
@@ -37,7 +42,8 @@ export async function GET(req: NextRequest) {
     } catch {}
   });
   serverAny.addEventListener('close', () => {
-    // keep map lightweight; clients removed on error/send too
+    const peers = sessions.get(sessionId);
+    if (peers) peers.delete(server as unknown as WebSocket);
   });
 
   peerSet.add(server as unknown as WebSocket);
