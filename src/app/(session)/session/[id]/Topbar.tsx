@@ -2,11 +2,13 @@
 import { ThemeSwitcher } from '@/app/components/ThemeSwitcher';
 import { Copy, CircleUserRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 
 export function SessionTopbar({ sessionId }: { sessionId: string }) {
+  const [link, setLink] = useState('');
+  useEffect(() => { setLink(window.location.href); }, []);
   async function copy() {
-    const href = window.location.href;
-    await navigator.clipboard?.writeText(href);
+    await navigator.clipboard?.writeText(link);
     toast.success('Link copied');
   }
   return (
@@ -27,7 +29,7 @@ export function SessionTopbar({ sessionId }: { sessionId: string }) {
         </div>
       </div>
       <div className="rounded-xl border px-4 py-2 text-sm text-slate-300 overflow-x-auto">
-        Share link: <span className="font-mono text-slate-200">{typeof window !== 'undefined' ? window.location.href : ''}</span>
+        Share link: <span className="font-mono text-slate-200" suppressHydrationWarning>{link}</span>
       </div>
     </div>
   );
