@@ -43,7 +43,8 @@ export async function POST(req: NextRequest, ctx: any) {
 
         if (withinThreeWindow) {
           const avg = numericVotes.reduce((a,b)=>a+b,0) / numericVotes.length;
-          const rounded = fibDeck.find(x => x >= avg) ?? fibDeck[fibDeck.length - 1];
+          // Round up to next whole number (e.g., 6.1 -> 7, 6.5 -> 7)
+          const rounded = Math.ceil(avg);
 
           s.finalizedItems = s.finalizedItems ?? [];
           s.finalizedItems.push({
