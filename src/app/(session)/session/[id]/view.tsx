@@ -28,33 +28,22 @@ export function SessionView({ id }: { id: string }) {
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
 
   const [joining, setJoining] = useState(false);
-  useEffect(() => {
+  const [displayName, setDisplayName] = useState('');
+  const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
+  async function selfJoin() {
+    if (!s || joining) return;
+    setJoining(true);
     try {
-      if (!s) return;
-      if (typeof window === 'undefined') return;
-      const existing = localStorage.getItem('pid:' + s.id);
-      const alreadyJoined = sessionStorage.getItem('joined:' + s.id) === '1';
-      if (existing || joining || alreadyJoined) return;
-      if (!/^\d{6}$/.test(String(s.code))) return;
-      setJoining(true);
-      const name = window.prompt('Enter your display name') || 'Guest';
-      (async () => {
-        try {
-          const res = await fetch(`/api/session/${s.id}/self-join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-          if (res.ok) {
-            const data = await res.json();
-            localStorage.setItem('pid:' + s.id, data.participantId);
-            sessionStorage.setItem('joined:' + s.id, '1');
-            await mutate();
-          }
-        } finally {
-          setJoining(false);
-        }
-      })();
-    } catch {
-      // ignore
+      const res = await fetch(`/api/session/${s.id}/self-join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: displayName || 'Guest' }) });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('pid:' + s.id, data.participantId);
+        await mutate();
+      }
+    } finally {
+      setJoining(false);
     }
-  }, [s, joining, mutate]);
+  }
 
   async function vote(v: string | number) {
     if (!myPid) return;
@@ -81,7 +70,7 @@ export function SessionView({ id }: { id: string }) {
         <ul className="text-sm space-y-1">
           {s.participants.map((p: any) => (
             <li key={p.id} className={p.id===s.facilitatorId? 'font-semibold' : ''}>
-              {p.name ?? 'Member'}
+              {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}
               {iAmFacilitator && p.id !== s.facilitatorId && (
                 <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
               )}
@@ -90,6 +79,12 @@ export function SessionView({ id }: { id: string }) {
         </ul>
         <div className="text-xs text-gray-500 mt-2">Share: <Link href={shareLink} className="underline">{shareLink}</Link></div>
         <div className="text-xs text-gray-500">Code: {s.code}</div>
+        {notJoined && (
+          <div className="mt-3 space-y-2">
+            <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
+            <button disabled={joining} className="w-full border rounded px-3 py-2 disabled:opacity-50" onClick={selfJoin}>{joining ? 'Joining…' : 'Join Session'}</button>
+          </div>
+        )}
         {iAmFacilitator && (
           <div className="mt-3">
             <button className="border rounded px-3 py-2 w-full" onClick={startRound}>New Work Item</button>
