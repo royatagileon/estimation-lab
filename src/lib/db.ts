@@ -1,7 +1,4 @@
-import { neon, neonConfig } from "@neondatabase/serverless";
-
-// Cache connections across invocations (Edge/Serverless friendly)
-neonConfig.fetchConnectionCache = true;
+import { neon } from "@neondatabase/serverless";
 
 let memoizedSql: ReturnType<typeof neon> | null = null;
 
