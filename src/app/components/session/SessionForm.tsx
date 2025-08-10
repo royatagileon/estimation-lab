@@ -86,7 +86,7 @@ export default function SessionForm() {
     }
 
     const data = await res.json();
-    router.push(data.joinUrl ?? `/session/${data.id}`);
+    router.push(`/session/${data.id}`);
   };
 
   return (

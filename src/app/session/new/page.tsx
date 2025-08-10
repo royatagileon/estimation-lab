@@ -22,7 +22,7 @@ export default function NewSessionPage() {
     if (data.facilitatorToken) {
       localStorage.setItem("facilitatorToken:"+data.id, data.facilitatorToken);
     }
-    r.push(data.joinUrl);
+    r.push(`/session/${data.id}`);
   }
 
   return (
