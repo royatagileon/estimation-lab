@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import type { Session } from "@/lib/types";
+import { RealtimeClient } from "./client";
 
 const fetcher = (u: string) => fetch(u).then(r => r.json());
 
@@ -65,6 +66,7 @@ export function SessionView({ id }: { id: string }) {
 
   return (
     <div className="grid grid-cols-12 gap-4">
+      <RealtimeClient sessionId={s.id} />
       <aside className="col-span-3 border rounded p-3">
         <h2 className="font-semibold mb-2">Participants</h2>
         <ul className="text-sm space-y-1">
