@@ -29,7 +29,7 @@ export function SessionTopbar({ sessionId }: { sessionId: string }) {
         </div>
       </div>
       <div className="rounded-xl border px-4 py-2 text-sm text-slate-700 dark:text-slate-300 overflow-x-auto">
-        Share link: <span className="font-mono text-slate-200" suppressHydrationWarning>{link}</span>
+        Share link: <span className="font-mono text-slate-900 dark:text-slate-200" suppressHydrationWarning>{link}</span>
       </div>
     </div>
   );
