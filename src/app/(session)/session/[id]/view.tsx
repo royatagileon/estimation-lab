@@ -1,9 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import type { Session } from "@/lib/types";
-import { RealtimeClient } from "./client";
 
 const fetcher = (u: string) => fetch(u).then(r => r.json());
 
@@ -66,7 +65,6 @@ export function SessionView({ id }: { id: string }) {
 
   return (
     <div className="grid grid-cols-12 gap-4">
-      <RealtimeClient sessionId={s.id} />
       <aside className="col-span-3 border rounded p-3">
         <h2 className="font-semibold mb-2">Participants</h2>
         <ul className="text-sm space-y-1">
@@ -95,6 +93,7 @@ export function SessionView({ id }: { id: string }) {
       </aside>
 
       <main className="col-span-6 border rounded p-3">
+        <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         {s.round.itemTitle && (
           <div className="mb-3">
