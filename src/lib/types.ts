@@ -23,6 +23,8 @@ export type Session = {
   participants: Participant[];
   round: Round;
   createdAt: number;
+  facilitatorId?: string;
+  facilitatorToken?: string;
   finalizedItems?: Array<{
     title: string;
     description?: string;

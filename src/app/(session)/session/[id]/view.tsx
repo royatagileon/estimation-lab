@@ -23,15 +23,48 @@ export function SessionView({ id }: { id: string }) {
   const slugKey = slugifyTeam(s.teamName) ? `${slugifyTeam(s.teamName)}-${s.code}` : s.code;
   const shareLink = `/s/${slugKey}`;
 
+  const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
+  const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
+
+  async function vote(v: string | number) {
+    if (!myPid) return;
+    await fetch(`/api/session/${s!.id}/vote`, {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ participantId: myPid, value: v })
+    });
+  }
+
+  async function startRound() {
+    if (!iAmFacilitator) return;
+    const title = prompt('Work item title') || '';
+    const description = prompt('Description (optional)') || '';
+    const ac = prompt('Acceptance criteria (optional)') || '';
+    await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac }) });
+  }
+  async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal' }) }); }
+  async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote' }) }); }
+
   return (
     <div className="grid grid-cols-12 gap-4">
       <aside className="col-span-3 border rounded p-3">
         <h2 className="font-semibold mb-2">Participants</h2>
         <ul className="text-sm space-y-1">
-          {s.participants.map((p: any) => <li key={p.id}>{p.name ?? "Member"}</li>)}
+          {s.participants.map((p: any) => (
+            <li key={p.id} className={p.id===s.facilitatorId? 'font-semibold' : ''}>
+              {p.name ?? 'Member'}
+              {iAmFacilitator && p.id !== s.facilitatorId && (
+                <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id }) }); }}>make facilitator</button>
+              )}
+            </li>
+          ))}
         </ul>
         <div className="text-xs text-gray-500 mt-2">Share: <Link href={shareLink} className="underline">{shareLink}</Link></div>
         <div className="text-xs text-gray-500">Code: {s.code}</div>
+        {iAmFacilitator && (
+          <div className="mt-3">
+            <button className="border rounded px-3 py-2 w-full" onClick={startRound}>New Work Item</button>
+          </div>
+        )}
       </aside>
 
       <main className="col-span-6 border rounded p-3">
@@ -49,15 +82,19 @@ export function SessionView({ id }: { id: string }) {
           </div>
         )}
         <div className="flex gap-2">
-          {deck.map(v => (
-            <button
-              key={String(v)}
-              className="flex-1 border rounded py-6 text-lg"
-              aria-label={`vote ${v}`}
-            >
-              {String(v)}
-            </button>
-          ))}
+          {deck.map(v => {
+            const selected = myPid && s.participants.some((p: any)=> p.id===myPid && String(p.vote)===String(v));
+            return (
+              <button
+                key={String(v)}
+                className={`flex-1 border rounded py-6 text-lg ${selected? 'bg-white text-green-600 border-green-600': ''}`}
+                aria-label={`vote ${v}`}
+                onClick={()=>vote(v as any)}
+              >
+                {String(v)}
+              </button>
+            );
+          })}
         </div>
 
         {isBusiness && (
@@ -72,8 +109,8 @@ export function SessionView({ id }: { id: string }) {
         )}
 
         <div className="mt-3 flex gap-2">
-          <button className="border rounded px-3 py-2">Reveal</button>
-          <button className="border rounded px-3 py-2">Revote</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal}>Reveal</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote}>Revote</button>
         </div>
       </main>
 

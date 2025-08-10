@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
     participants: [],
     round: { status: "idle" },
     createdAt: Date.now(),
+    facilitatorId: undefined,
+    facilitatorToken: undefined,
   };
 
   const ttlSeconds: number | undefined = typeof body.ttl === "number" ? body.ttl : undefined;
@@ -52,6 +54,9 @@ export async function POST(req: NextRequest) {
   const slugKey = teamSlug ? `${teamSlug}-${code}` : code;
   const joinUrl = `${baseUrl()}/s/${slugKey}`;
   const facilitatorToken = globalThis.crypto?.randomUUID?.() ?? undefined;
+  // Persist facilitator scaffolding on session for later privilege checks (token is stored separately client-side)
+  session.facilitatorToken = facilitatorToken;
+  await sql`update sessions set data = ${JSON.stringify(session)}::jsonb where id = ${id}`;
 
   return NextResponse.json({ id, code, teamName: session.teamName, joinUrl, facilitatorToken });
 }

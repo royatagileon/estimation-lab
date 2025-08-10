@@ -13,10 +13,14 @@ export async function POST(req: NextRequest) {
 
   const participantId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   s.participants.push({ id: participantId, name: String(name || "Guest").slice(0, 40), voted: false });
+  // Bootstrap facilitator if none
+  if (!s.facilitatorId) {
+    s.facilitatorId = participantId;
+  }
 
   await sql`update sessions set data = ${JSON.stringify(s)}::jsonb where id = ${id}`;
 
-  return NextResponse.json({ sessionId: id, participantId });
+  return NextResponse.json({ sessionId: id, participantId, facilitatorId: s.facilitatorId });
 }
 
 
