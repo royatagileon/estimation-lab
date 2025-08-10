@@ -13,6 +13,9 @@ export async function POST(req: NextRequest, ctx: any) {
   const s = rows[0].data;
 
   if (body.action === "start") {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     s.round = {
       status: "voting",
       itemTitle: String(body.itemTitle || "").slice(0, 200),
@@ -21,6 +24,9 @@ export async function POST(req: NextRequest, ctx: any) {
     };
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   } else if (body.action === "reveal") {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     s.round.status = "revealed";
 
     if (s.method === "refinement_poker") {
@@ -55,6 +61,9 @@ export async function POST(req: NextRequest, ctx: any) {
       }
     }
   } else if (body.action === "revote") {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     if (s.round.itemTitle) {
       s.round.status = "voting";
       s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));

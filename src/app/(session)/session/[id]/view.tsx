@@ -39,10 +39,10 @@ export function SessionView({ id }: { id: string }) {
     const title = prompt('Work item title') || '';
     const description = prompt('Description (optional)') || '';
     const ac = prompt('Acceptance criteria (optional)') || '';
-    await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac }) });
+    await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid }) });
   }
-  async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal' }) }); }
-  async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote' }) }); }
+  async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal', actorParticipantId: myPid }) }); }
+  async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote', actorParticipantId: myPid }) }); }
 
   return (
     <div className="grid grid-cols-12 gap-4">
@@ -53,7 +53,7 @@ export function SessionView({ id }: { id: string }) {
             <li key={p.id} className={p.id===s.facilitatorId? 'font-semibold' : ''}>
               {p.name ?? 'Member'}
               {iAmFacilitator && p.id !== s.facilitatorId && (
-                <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id }) }); }}>make facilitator</button>
+                <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
               )}
             </li>
           ))}
