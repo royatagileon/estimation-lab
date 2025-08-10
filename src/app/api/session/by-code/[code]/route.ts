@@ -1,11 +1,14 @@
+export const runtime = "edge";
 import { NextResponse } from "next/server";
-import kv from "@/lib/kv";
+import { getSql, ensureSessionsTable } from "@/lib/db";
 
 export async function GET(_: Request, ctx: any) {
   const { params } = ctx as { params: { code: string } };
-  const id = await kv.get<string>(`code:${params.code}`);
-  if (!id) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ id });
+  await ensureSessionsTable();
+  const sql = getSql();
+  const rows = (await sql`select id from sessions where (data->>'code') = ${params.code} and (expires_at is null or expires_at > now()) limit 1`) as Array<{ id: string }>;
+  if (!rows.length) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json({ id: rows[0].id });
 }
 
 

@@ -42,7 +42,7 @@
     "ws": "^8.18.3",
     "zod": "^4.0.16",
     "swr": "^2.3.0",
-    "@vercel/kv": "^1.0.1",
+    "@neondatabase/serverless": "^0.10.4",
     "uuid": "^9.0.1",
     "react-hook-form": "^7.52.1",
     "@hookform/resolvers": "^3.3.4"

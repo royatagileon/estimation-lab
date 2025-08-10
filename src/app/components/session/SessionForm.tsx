@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useForm } from "react-hook-form";
+import type { UseFormRegisterReturn } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -37,7 +38,7 @@ function RadioCard({
   selected: boolean;
   title: string;
   subtitle: string;
-  registerName: any;
+  registerName: UseFormRegisterReturn;
 }) {
   return (
     <label
