@@ -6,7 +6,8 @@ export default async function SessionBoardPage({ params }: { params: Promise<{ i
   // fetch session info client-side via tRPC provider on the page body
   return (
     <div className="space-y-4">
-      <RealtimeClient sessionId={id} />
+      {/* Temporarily disable realtime until Vercel ws path verified */}
+      {/* <RealtimeClient sessionId={id} /> */}
       <SessionView id={id} />
     </div>
   );

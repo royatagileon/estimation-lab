@@ -12,7 +12,12 @@ function slugifyTeam(team?: string) {
 }
 
 export function SessionView({ id }: { id: string }) {
+  // All hooks must run before any early returns to satisfy React rules
   const { data: s, isLoading, mutate } = useSWR<Session>(`/api/session/${id}`, fetcher, { refreshInterval: 1000 });
+  const [joining, setJoining] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
+
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
 
@@ -26,10 +31,6 @@ export function SessionView({ id }: { id: string }) {
 
   const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
-
-  const [joining, setJoining] = useState(false);
-  const [displayName, setDisplayName] = useState('');
-  const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
   async function selfJoin() {
     if (!s || joining) return;
     setJoining(true);
