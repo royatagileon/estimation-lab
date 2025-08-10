@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
-import { Check, Crown, Users, Share2 } from "lucide-react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { Crown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import Link from "next/link";
@@ -50,10 +50,17 @@ export function SessionView({ id }: { id: string }) {
 
   async function vote(v: string | number) {
     if (!myPid) return;
+    await mutate(async (curr) => {
+      if (!curr) return curr as any;
+      const next = { ...curr } as Session;
+      next.participants = next.participants.map(p => p.id===myPid ? { ...p, voted: true, vote: v as any } : p);
+      return next as any;
+    }, { revalidate: false });
     await fetch(`/api/session/${s!.id}/vote`, {
       method: 'POST', headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ participantId: myPid, value: v })
     });
+    mutate();
   }
   async function unvote() {
     if (!myPid) return;
@@ -72,6 +79,22 @@ export function SessionView({ id }: { id: string }) {
   }
   async function reveal() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reveal', actorParticipantId: myPid }) }); }
   async function revote() { if (iAmFacilitator) await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'revote', actorParticipantId: myPid }) }); }
+
+  const numericVotes = useMemo(() => {
+    return s.participants
+      .map((p:any)=> Number(p.vote))
+      .filter((v:number)=> !isNaN(v) && v>0);
+  }, [s.participants]);
+  const unanimous = useMemo(() => numericVotes.length>0 && numericVotes.every(v=>v===numericVotes[0]), [numericVotes]);
+
+  useEffect(() => {
+    if (s.round.status === 'revealed' && unanimous) {
+      // confetti when all the same
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({ origin: { y: 1.1 }, startVelocity: 20, spread: 80, scalar: 0.8, particleCount: 120 });
+      }).catch(() => {});
+    }
+  }, [s.round.status, unanimous]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -128,7 +151,7 @@ export function SessionView({ id }: { id: string }) {
                 aria-label={`vote ${v}`}
                 onClick={()=>vote(v as any)}
               >
-                <span className="inline-flex items-center gap-2">{selected && <Check className="h-4 w-4" />} {String(v)}</span>
+                <span className="inline-flex items-center gap-2">{String(v)}</span>
               </motion.button>
             );
           })}
@@ -148,10 +171,19 @@ export function SessionView({ id }: { id: string }) {
           </div>
         )}
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex gap-2 items-center">
           <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
           <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
+          <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
+
+        <AnimatePresence>
+          {s.round.status === 'revealed' && !unanimous && (
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 p-3 text-sm">
+              Spread detected. Consider a short discussion, then press Revote.
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       <aside className="md:col-span-4 surface p-5 rounded-2xl">
