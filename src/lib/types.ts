@@ -23,6 +23,14 @@ export type Session = {
   participants: Participant[];
   round: Round;
   createdAt: number;
+  finalizedItems?: Array<{
+    title: string;
+    description?: string;
+    acceptanceCriteria?: string;
+    value: string;            // finalized deck value
+    average: number;          // numeric average before rounding
+    decidedAt: number;
+  }>;
 };
 
 export type SessionState = Session;

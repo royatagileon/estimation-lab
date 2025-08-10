@@ -36,9 +36,27 @@ export function SessionView({ id }: { id: string }) {
 
       <main className="col-span-6 border rounded p-3">
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
+        {s.round.itemTitle && (
+          <div className="mb-3">
+            <div className="font-medium">{s.round.itemTitle}</div>
+            {s.round.itemDescription && <div className="text-sm text-neutral-600 whitespace-pre-wrap">{s.round.itemDescription}</div>}
+            {s.round.acceptanceCriteria && (
+              <div className="mt-1">
+                <div className="text-xs font-medium">Acceptance Criteria</div>
+                <div className="text-sm text-neutral-600 whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex gap-2">
           {deck.map(v => (
-            <button key={String(v)} className="flex-1 border rounded py-6 text-lg" aria-label={`vote ${v}`}>{String(v)}</button>
+            <button
+              key={String(v)}
+              className="flex-1 border rounded py-6 text-lg"
+              aria-label={`vote ${v}`}
+            >
+              {String(v)}
+            </button>
           ))}
         </div>
 
@@ -62,6 +80,19 @@ export function SessionView({ id }: { id: string }) {
       <aside className="col-span-3 border rounded p-3">
         <h2 className="font-semibold mb-2">Similar Items</h2>
         <p className="text-sm text-gray-500">Model suggestion and neighbors…</p>
+        {s.finalizedItems && s.finalizedItems.length > 0 && (
+          <div className="mt-3">
+            <div className="text-sm font-medium mb-1">Finalized</div>
+            <ul className="space-y-2 text-sm">
+              {s.finalizedItems.map((fi, idx) => (
+                <li key={idx} className="border rounded p-2">
+                  <div className="font-medium">{fi.title}</div>
+                  <div className="text-xs text-neutral-600">Value: {fi.value} (avg {fi.average.toFixed(1)})</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </aside>
     </div>
   );

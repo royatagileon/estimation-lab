@@ -15,13 +15,45 @@ export async function POST(req: NextRequest, ctx: any) {
   if (body.action === "start") {
     s.round = {
       status: "voting",
-      itemTitle: String(body.itemTitle||"").slice(0,200),
-      itemDescription: String(body.itemDescription||"").slice(0,5000),
-      acceptanceCriteria: String(body.acceptanceCriteria||"").slice(0,5000),
+      itemTitle: String(body.itemTitle || "").slice(0, 200),
+      itemDescription: String(body.itemDescription || "").slice(0, 5000),
+      acceptanceCriteria: String(body.acceptanceCriteria || "").slice(0, 5000),
     };
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   } else if (body.action === "reveal") {
     s.round.status = "revealed";
+
+    if (s.method === "refinement_poker") {
+      const numericVotes = s.participants
+        .map(p => (p.vote !== undefined ? Number(p.vote) : NaN))
+        .filter(v => Number.isFinite(v)) as number[];
+
+      const allVoted = s.participants.length > 0 && s.participants.every(p => p.voted && p.vote !== undefined && !Number.isNaN(Number(p.vote)));
+      if (allVoted) {
+        const fibDeck = [0,1,2,3,5,8,13,21,34,55];
+        const indexOf = (n: number) => fibDeck.findIndex(x => x === n);
+        const indices = numericVotes.map(indexOf).filter(i => i >= 0).sort((a,b)=>a-b);
+        const withinThreeWindow = indices.length > 0 && (indices[indices.length - 1] - indices[0] <= 2);
+
+        if (withinThreeWindow) {
+          const avg = numericVotes.reduce((a,b)=>a+b,0) / numericVotes.length;
+          const rounded = fibDeck.find(x => x >= avg) ?? fibDeck[fibDeck.length - 1];
+
+          s.finalizedItems = s.finalizedItems ?? [];
+          s.finalizedItems.push({
+            title: s.round.itemTitle ?? s.title,
+            description: s.round.itemDescription,
+            acceptanceCriteria: s.round.acceptanceCriteria,
+            value: String(rounded),
+            average: avg,
+            decidedAt: Date.now(),
+          });
+
+          s.round = { status: "idle" };
+          s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
+        }
+      }
+    }
   } else if (body.action === "revote") {
     if (s.round.itemTitle) {
       s.round.status = "voting";
