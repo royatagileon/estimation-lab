@@ -14,8 +14,13 @@ export async function POST(req: NextRequest, ctx: any) {
   const p = s.participants.find((x) => x.id === participantId);
   if (!p) return NextResponse.json({ error: "participant" }, { status: 404 });
   if (s.round.status !== "voting") return NextResponse.json({ ok: true });
-  p.voted = true;
-  p.vote = value as FibCard;
+  if (value === null || value === undefined || value === "") {
+    p.voted = false;
+    (p as any).vote = undefined;
+  } else {
+    p.voted = true;
+    p.vote = value as FibCard;
+  }
   await sql`update sessions set data = ${JSON.stringify(s)}::jsonb where id = ${params.id}`;
   return NextResponse.json({ ok: true });
 }

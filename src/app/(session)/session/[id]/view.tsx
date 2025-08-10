@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
+import { Check, Crown, Users, Share2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import Link from "next/link";
 import type { Session } from "@/lib/types";
@@ -53,6 +55,13 @@ export function SessionView({ id }: { id: string }) {
       body: JSON.stringify({ participantId: myPid, value: v })
     });
   }
+  async function unvote() {
+    if (!myPid) return;
+    await fetch(`/api/session/${s!.id}/vote`, {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ participantId: myPid, value: null })
+    });
+  }
 
   async function startRound() {
     if (!iAmFacilitator) return;
@@ -71,7 +80,7 @@ export function SessionView({ id }: { id: string }) {
         <ul className="text-sm space-y-1">
           {s.participants.map((p: any) => (
             <li key={p.id} className={p.id===s.facilitatorId? 'font-semibold' : ''}>
-              {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}
+              {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''} {p.id===s.facilitatorId && <span aria-label="Facilitator" title="Facilitator">👑</span>}
               {iAmFacilitator && p.id !== s.facilitatorId && (
                 <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
               )}
@@ -112,16 +121,20 @@ export function SessionView({ id }: { id: string }) {
           {deck.map(v => {
             const selected = myPid && s.participants.some((p: any)=> p.id===myPid && String(p.vote)===String(v));
             return (
-              <button
+              <motion.button
                 key={String(v)}
-                className={`flex-1 border rounded py-6 text-lg ${selected? 'bg-white text-green-600 border-green-600': ''}`}
+                whileTap={{ scale: 0.98 }}
+                className={`flex-1 border rounded py-6 text-lg select-none focus-ring ${selected? 'bg-green-500 text-white border-green-500': ''}`}
                 aria-label={`vote ${v}`}
                 onClick={()=>vote(v as any)}
               >
-                {String(v)}
-              </button>
+                <span className="inline-flex items-center gap-2">{selected && <Check className="h-4 w-4" />} {String(v)}</span>
+              </motion.button>
             );
           })}
+        </div>
+        <div className="mt-2 text-right">
+          <button className="text-xs underline" onClick={unvote}>Clear selection</button>
         </div>
 
         {isBusiness && (
@@ -136,8 +149,8 @@ export function SessionView({ id }: { id: string }) {
         )}
 
         <div className="mt-3 flex gap-2">
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal}>Reveal</button>
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote}>Revote</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
         </div>
       </main>
 
