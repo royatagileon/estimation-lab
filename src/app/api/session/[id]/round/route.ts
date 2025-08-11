@@ -41,6 +41,14 @@ export async function POST(req: NextRequest, ctx: any) {
     }
     s.round.status = 'voting';
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
+  } else if (body.action === 'end_voting') {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    // return to idle to allow editing
+    s.round.status = 'idle';
+    s.round.results = undefined;
+    s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   } else if (body.action === "reveal") {
     if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

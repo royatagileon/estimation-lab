@@ -211,7 +211,7 @@ export function SessionView({ id }: { id: string }) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Update' : 'Show'}</button>
+                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60 transition hover:scale-[1.01]" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Next' : 'Next'}</button>
                     <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
                     {s.round.editStatus==='granted' && s.round.editorId===myPid && (
                       <button className="rounded-xl border px-4 py-2 text-sm" onClick={async()=>{
@@ -298,7 +298,19 @@ export function SessionView({ id }: { id: string }) {
               <motion.button
                 key={String(v)}
                 whileTap={{ scale: 0.98 }}
-                className={`h-11 rounded-lg border text-sm font-medium select-none focus-ring grid place-items-center ${selected? 'bg-green-500 text-white border-green-500': 'hover:bg-slate-800/40'}`}
+                onMouseDown={(e)=>{
+                  // long press to start voting if facilitator and idle
+                  if (!iAmFacilitator || s.round.status!=='idle') return;
+                  const id = setTimeout(async()=>{
+                    await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
+                    mutate();
+                  }, 650);
+                  const clear = ()=> { clearTimeout(id); window.removeEventListener('mouseup', clear); window.removeEventListener('mouseleave', clear); };
+                  window.addEventListener('mouseup', clear); window.addEventListener('mouseleave', clear);
+                }}
+                className={`h-11 rounded-lg border text-sm font-medium select-none focus-ring grid place-items-center transition ${
+                  selected ? 'bg-green-500 text-white border-green-500' : s.round.status==='voting' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800/40'
+                }`}
                 aria-label={`vote ${v}`}
                 onClick={()=>vote(v as any)}
               >
@@ -307,8 +319,9 @@ export function SessionView({ id }: { id: string }) {
             );
           })}
         </div>
-        <div className="mt-2 text-right">
-          <button className="text-xs underline" onClick={unvote}>Clear selection</button>
+        <div className="mt-2 flex items-center justify-between">
+          <small className="muted">Tap again to clear</small>
+          <button className="text-xs underline" onClick={unvote}>Clear</button>
         </div>
 
         {isBusiness && (
@@ -323,8 +336,14 @@ export function SessionView({ id }: { id: string }) {
         )}
 
         <div className="mt-3 flex gap-2 items-center">
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50 transition hover:scale-[1.01]" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50 transition hover:scale-[1.01]" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
+          {iAmFacilitator && s.round.status==='voting' && (
+            <button className="border rounded px-3 py-2 transition hover:scale-[1.01]" onClick={async()=>{
+              await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'end_voting', actorParticipantId: myPid }) });
+              mutate();
+            }}>End poker</button>
+          )}
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
