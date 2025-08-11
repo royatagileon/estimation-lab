@@ -71,6 +71,7 @@ export function SessionView({ id }: { id: string }) {
 
   const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
+  const iCanEditWorkItem = iAmFacilitator || (s.round.editStatus === 'granted' && s.round.editorId === myPid);
   async function selfJoin() {
     if (!s || joining) return;
     setJoining(true);
@@ -167,7 +168,7 @@ export function SessionView({ id }: { id: string }) {
         )}
         <div className="mt-5">
           <h3 className="text-sm font-medium mb-2">Work item</h3>
-          {iAmFacilitator ? (
+          {iCanEditWorkItem ? (
             <div>
               {!showEditor && (
                 <>
@@ -241,11 +242,13 @@ export function SessionView({ id }: { id: string }) {
                       <div className="whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
                     </div>
                   )}
+                  {!iCanEditWorkItem && (
                   <button className="rounded-full border px-3 py-1.5 text-xs" onClick={async()=>{
                     if (!myPid) return;
                     await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'suggest_edit', by: myPid, title: s.round.itemTitle, description: s.round.itemDescription, criteria: s.round.acceptanceCriteria }) });
                     mutate();
                   }}>Request edit</button>
+                  )}
                 </div>
               )}
             </div>
