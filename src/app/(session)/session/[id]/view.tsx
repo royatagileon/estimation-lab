@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { Crown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { fireConfettiOnce } from '@/lib/confetti';
 import useSWR from "swr";
 import Link from "next/link";
 import type { Session } from "@/lib/types";
@@ -47,17 +48,9 @@ export function SessionView({ id }: { id: string }) {
   }, [s?.participants]);
   useEffect(() => {
     if (s?.round?.status === 'revealed' && unanimous) {
-      import('canvas-confetti').then(({ default: confetti }) => {
-        const duration = 1200;
-        const end = Date.now() + duration;
-        const frame = () => {
-          confetti({ particleCount: 120, spread: 100, startVelocity: 40, scalar: 1, ticks: 200, origin: { x: Math.random(), y: Math.random()*0.2 + 0.1 } });
-          if (Date.now() < end) requestAnimationFrame(frame);
-        };
-        frame();
-      }).catch(() => {});
+      fireConfettiOnce(`round-${s.id}-${s.createdAt}-${s.finalizedItems?.length ?? 0}`);
     }
-  }, [s?.round?.status, unanimous]);
+  }, [s?.round?.status, unanimous, s?.id, s?.createdAt, s?.finalizedItems?.length]);
 
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
