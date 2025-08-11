@@ -12,6 +12,10 @@ export type Round = {
   itemTitle?: string;
   itemDescription?: string;
   acceptanceCriteria?: string;
+  // Collaborative editing state
+  editStatus?: 'idle'|'requested'|'granted';
+  editRequestedBy?: string;  // participantId
+  editorId?: string;         // participantId currently editing when granted
   results?: {
     allVoted: boolean;
     withinWindow: boolean;
@@ -23,7 +27,7 @@ export type Round = {
     id: string;
     text: string;
     by: string; // participantId
-    approved: boolean;
+    status: 'pending'|'approved'|'rejected';
     createdAt: number;
   }>;
   suggestions?: Array<{

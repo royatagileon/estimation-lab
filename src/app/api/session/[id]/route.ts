@@ -30,14 +30,34 @@ export async function POST(req: Request, ctx: any) {
     const { by, title, description, criteria } = body as { by: string; title?: string; description?: string; criteria?: string };
     s.round.suggestions = s.round.suggestions ?? [];
     s.round.suggestions.push({ id: String(Date.now()), by, title, description, criteria, createdAt: Date.now() });
+    s.round.editStatus = 'requested';
+    s.round.editRequestedBy = by;
   } else if (body.action === 'add_task') {
     const { by, text } = body as { by: string; text: string };
     s.round.tasks = s.round.tasks ?? [];
-    s.round.tasks.push({ id: String(Date.now()), text: String(text).slice(0, 200), by, approved: false, createdAt: Date.now() });
+    s.round.tasks.push({ id: String(Date.now()), text: String(text).slice(0, 200), by, status: 'pending', createdAt: Date.now() });
   } else if (body.action === 'approve_task') {
     const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, approved: true } : t);
+    s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, status: 'approved' } : t);
+  } else if (body.action === 'reject_task') {
+    const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, status: 'rejected' } : t);
+  } else if (body.action === 'edit_task') {
+    const { taskId, text } = body as { taskId: string; text: string };
+    s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, text: String(text).slice(0, 200) } : t);
+  } else if (body.action === 'grant_edit') {
+    const { actorParticipantId, toParticipantId } = body as { actorParticipantId: string; toParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.round.editStatus = 'granted';
+    s.round.editorId = toParticipantId;
+  } else if (body.action === 'finish_edit') {
+    const { by } = body as { by: string };
+    if (s.round.editorId !== by) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.round.editStatus = 'idle';
+    s.round.editorId = undefined;
+    s.round.editRequestedBy = undefined;
   } else {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }

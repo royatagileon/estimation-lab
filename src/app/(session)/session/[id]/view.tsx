@@ -236,29 +236,23 @@ export function SessionView({ id }: { id: string }) {
             <div className="text-sm font-medium mb-1">Tasks</div>
             <div className="space-y-2">
               {(s.round.tasks ?? []).map((t:any) => (
-                <div key={t.id} className="flex items-center justify-between rounded border px-2 py-1 text-sm">
-                  <span className={`${t.approved ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>{t.text}</span>
-                  {!t.approved && iAmFacilitator && (
-                    <button className="text-xs underline" onClick={async()=>{
-                      await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) });
-                      mutate();
-                    }}>Approve</button>
-                  )}
+                <div key={t.id} className={`flex items-center justify-between rounded border px-2 py-1 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
+                  <input className="flex-1 bg-transparent outline-none" defaultValue={t.text} onBlur={async(e)=>{
+                    const val = (e.target as HTMLInputElement).value;
+                    await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
+                    mutate();
+                  }} />
+                  <div className="flex items-center gap-2">
+                    {iAmFacilitator && t.status!=='approved' && (
+                      <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Approve</button>
+                    )}
+                    {iAmFacilitator && t.status!=='rejected' && (
+                      <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reject_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Reject</button>
+                    )}
+                  </div>
                 </div>
               ))}
-              <div className="flex gap-2">
-                <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" placeholder="Propose a task…" onKeyDown={async(e)=>{
-                  if (e.key === 'Enter') {
-                    const target = e.target as HTMLInputElement;
-                    const text = target.value.trim();
-                    if (!text) return;
-                    const by = myPid ?? '';
-                    await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'add_task', by, text }) });
-                    target.value = '';
-                    mutate();
-                  }
-                }} />
-              </div>
+              <TaskComposer sessionId={s.id} myPid={myPid} onCreated={mutate} />
             </div>
           </div>
         )}
@@ -353,4 +347,21 @@ export function SessionView({ id }: { id: string }) {
   );
 }
 
+
+
+function TaskComposer({ sessionId, myPid, onCreated }: { sessionId: string; myPid?: string; onCreated: () => void }) {
+  const [text, setText] = useState("");
+  return (
+    <div className="flex gap-2">
+      <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" placeholder="Propose a task…" value={text} onChange={e=>setText(e.target.value)} />
+      <button className="rounded-xl border px-3 py-2 text-sm" onClick={async()=>{
+        const t = text.trim();
+        if (!t) return;
+        await fetch(`/api/session/${sessionId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'add_task', by: myPid ?? '', text: t }) });
+        setText("");
+        onCreated();
+      }}>Send</button>
+    </div>
+  );
+}
 
