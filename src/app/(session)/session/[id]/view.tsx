@@ -229,47 +229,6 @@ export function SessionView({ id }: { id: string }) {
       <main className="md:col-span-4 surface p-5 rounded-2xl">
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
-        {showEditor ? (
-          <div className="mb-4 space-y-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
-              <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40" value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Acceptance criteria</label>
-              <div className="space-y-2">
-                {criteria.map((c, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{
-                      const next=[...criteria]; next[idx]=e.target.value; setCriteria(next);
-                    }} />
-                    <button className="text-xs underline" onClick={()=>{ const next=criteria.slice(); next.splice(idx,1); setCriteria(next); }}>Remove</button>
-                  </div>
-                ))}
-                <button className="rounded-full border px-3 py-1.5 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>Start</button>
-              <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
-            </div>
-          </div>
-        ) : s.round.itemTitle && (
-          <div className="mb-3">
-            <div className="font-medium">{s.round.itemTitle}</div>
-            {s.round.itemDescription && <div className="text-sm text-neutral-600 whitespace-pre-wrap">{s.round.itemDescription}</div>}
-            {s.round.acceptanceCriteria && (
-              <div className="mt-1">
-                <div className="text-xs font-medium">Acceptance Criteria</div>
-                <div className="text-sm text-neutral-600 whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
-              </div>
-            )}
-          </div>
-        )}
         <div className="grid grid-cols-4 gap-3">
           {deck.map(v => {
             const selected = myPid && s.participants.some((p: any)=> p.id===myPid && String(p.vote)===String(v));
