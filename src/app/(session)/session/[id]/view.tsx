@@ -24,6 +24,7 @@ export function SessionView({ id }: { id: string }) {
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [criteria, setCriteria] = useState<string[]>([]);
+  const [taskDrafts, setTaskDrafts] = useState<Record<string,string>>({});
 
   // Derivations and effects must be declared before any return
   const numericVotes = useMemo(() => {
@@ -108,20 +109,27 @@ export function SessionView({ id }: { id: string }) {
   }
 
   function openEditor() {
-    if (!iAmFacilitator) return;
+    const canEdit = iAmFacilitator || (s?.round.editStatus === 'granted' && s?.round.editorId === myPid);
+    if (!canEdit) return;
     setEditTitle(s?.round.itemTitle || '');
     setEditDesc(s?.round.itemDescription || '');
     setCriteria((s?.round.acceptanceCriteria || '').split('\n').filter(Boolean));
     setShowEditor(true);
   }
   async function submitEditor() {
-    if (!iAmFacilitator) return;
+    const canEdit = iAmFacilitator || (s?.round.editStatus === 'granted' && s?.round.editorId === myPid);
+    if (!canEdit) return;
     const title = editTitle.trim();
     const description = editDesc.trim();
     const list = criteria.map(c => c.trim()).filter(Boolean);
     if (!title || !description || list.length === 0) return;
     const ac = list.join('\n');
-    await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid }) });
+    // If an item already exists, update it; otherwise start a new round
+    const isUpdate = Boolean(s?.round.itemTitle);
+    const payload = isUpdate
+      ? { action:'update', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, by: myPid }
+      : { action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid };
+    await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     setShowEditor(false);
     mutate();
   }
@@ -236,6 +244,7 @@ export function SessionView({ id }: { id: string }) {
                   <button className="rounded-full border px-3 py-1.5 text-xs" onClick={async()=>{
                     if (!myPid) return;
                     await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'suggest_edit', by: myPid, title: s.round.itemTitle, description: s.round.itemDescription, criteria: s.round.acceptanceCriteria }) });
+                    mutate();
                   }}>Request edit</button>
                 </div>
               )}
@@ -249,12 +258,14 @@ export function SessionView({ id }: { id: string }) {
             <div className="space-y-2">
               {(s.round.tasks ?? []).map((t:any) => (
                 <div key={t.id} className={`flex items-center justify-between rounded border px-2 py-1 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
-                  <input className="flex-1 bg-transparent outline-none" defaultValue={t.text} onBlur={async(e)=>{
+                  <input className="flex-1 bg-transparent outline-none" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: e.target.value }))} onBlur={async(e)=>{
                     const val = (e.target as HTMLInputElement).value;
                     await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
+                    setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
                     mutate();
                   }} />
                   <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{t.status}</span>
                     {iAmFacilitator && t.status!=='approved' && (
                       <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Approve</button>
                     )}
