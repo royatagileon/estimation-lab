@@ -152,7 +152,6 @@ export function SessionView({ id }: { id: string }) {
             })}
           </ul>
         </div>
-        <div className="text-xs text-gray-500 mt-2">Share: <Link href={shareLink} className="underline">{shareLink}</Link></div>
         <div className="text-xs text-gray-500">Code: {s.code}</div>
         {notJoined && (
           <div className="mt-3 space-y-2">
@@ -161,7 +160,7 @@ export function SessionView({ id }: { id: string }) {
           </div>
         )}
         <div className="mt-5">
-          <h3 className="text-sm font-medium mb-2">Work item</h3>
+          <h3 className="text-sm font-medium mb-2">Ready for Refinement</h3>
           {iCanEditWorkItem ? (
             <div>
               {!showEditor && (
@@ -329,10 +328,10 @@ export function SessionView({ id }: { id: string }) {
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
-        {/* Results box (persistent) */}
+        {/* Notifications (formerly Results) */}
         <div className="mt-3">
           <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm bg-[--color-warn-bg] text-[--color-warn-fg] dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/30">
-            <div className="text-xs font-medium mb-1">Results</div>
+            <div className="text-xs font-medium mb-1">Notifications</div>
             {s.round.status === 'idle' && ((s.round.tasks??[]).some((t:any)=>t.status==='approved') || (s.round.tasks??[]).length===0) && (
               <div className="flex items-center gap-2">
                 <span>Awaiting facilitator to begin the poker round…</span>
