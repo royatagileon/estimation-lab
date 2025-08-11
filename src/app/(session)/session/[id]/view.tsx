@@ -25,6 +25,7 @@ export function SessionView({ id }: { id: string }) {
   const [editDesc, setEditDesc] = useState('');
   const [criteria, setCriteria] = useState<string[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<string,string>>({});
+  const [showOtherTasks, setShowOtherTasks] = useState(false);
 
   // Derivations and effects must be declared before any return
   const numericVotes = useMemo(() => {
@@ -254,12 +255,17 @@ export function SessionView({ id }: { id: string }) {
             </div>
           )}
         </div>
-        {/* Tasks section */}
-        {s.round.status !== 'idle' && (
+        {/* Tasks section: available after work item is shown */}
+        {Boolean(s.round.itemTitle) && (
           <div className="mt-4">
             <div className="text-sm font-medium mb-1">Tasks</div>
             <div className="space-y-2">
-              {(s.round.tasks ?? []).map((t:any) => (
+              {(() => {
+                const allTasks = (s.round.tasks ?? []) as any[];
+                const approved = allTasks.filter(t=>t.status==='approved');
+                const others = allTasks.filter(t=>t.status!=='approved');
+                const list = s.round.status === 'voting' && !showOtherTasks ? approved : allTasks;
+                return list.map((t:any) => (
                 <div key={t.id} className={`rounded-xl border p-2 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
                   <textarea className="w-full rounded border px-2 py-1 bg-transparent outline-none resize-y min-h-[40px]" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))} onBlur={async(e)=>{
                     const val = (e.target as HTMLTextAreaElement).value;
@@ -277,7 +283,13 @@ export function SessionView({ id }: { id: string }) {
                     )}
                   </div>
                 </div>
-              ))}
+                ));
+              })()}
+              {s.round.status === 'voting' && (s.round.tasks ?? []).some((t:any)=>t.status!=='approved') && (
+                <button className="text-xs underline" onClick={()=>setShowOtherTasks(v=>!v)}>
+                  {showOtherTasks ? '▾ Hide pending/rejected' : '▸ Show pending/rejected'}
+                </button>
+              )}
               <TaskComposer sessionId={s.id} myPid={myPid} onCreated={mutate} />
             </div>
           </div>
@@ -294,7 +306,7 @@ export function SessionView({ id }: { id: string }) {
               <motion.button
                 key={String(v)}
                 whileTap={{ scale: 0.98 }}
-                className={`h-11 rounded-xl border text-sm font-medium select-none focus-ring grid place-items-center ${selected? 'bg-green-500 text-white border-green-500': 'hover:bg-slate-800/40'}`}
+                className={`h-11 rounded-lg border text-sm font-medium select-none focus-ring grid place-items-center ${selected? 'bg-green-500 text-white border-green-500': 'hover:bg-slate-800/40'}`}
                 aria-label={`vote ${v}`}
                 onClick={()=>vote(v as any)}
               >
@@ -318,13 +330,9 @@ export function SessionView({ id }: { id: string }) {
           </div>
         )}
 
-          <div className="mt-3 flex gap-2 items-center">
+        <div className="mt-3 flex gap-2 items-center">
           <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
-            <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
-            <button className={`rounded px-3 py-2 text-sm border ${iAmFacilitator && ((s.round.tasks??[]).some(t=>t.status==='approved') || (s.round.tasks??[]).length===0) ? 'bg-emerald-500 text-white' : 'opacity-50'}`} disabled={!iAmFacilitator} onClick={async()=>{
-              await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
-              mutate();
-            }}>Play poker</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
@@ -332,6 +340,17 @@ export function SessionView({ id }: { id: string }) {
         <div className="mt-3">
           <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm bg-[--color-warn-bg] text-[--color-warn-fg] dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/30">
             <div className="text-xs font-medium mb-1">Results</div>
+            {s.round.status === 'idle' && ((s.round.tasks??[]).some((t:any)=>t.status==='approved') || (s.round.tasks??[]).length===0) && (
+              <div className="flex items-center gap-2">
+                <span>Awaiting facilitator to begin the poker round…</span>
+                {iAmFacilitator && (
+                  <button className="rounded px-2 py-1 text-xs bg-emerald-500 text-white" onClick={async()=>{
+                    await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
+                    mutate();
+                  }}>Begin</button>
+                )}
+              </div>
+            )}
             {s.round.status === 'revealed' && s.round.results?.allVoted && (
               <div>
                 {s.round.results.unanimous ? (
