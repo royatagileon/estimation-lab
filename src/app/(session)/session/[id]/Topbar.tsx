@@ -4,7 +4,7 @@ import { Copy, CircleUserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
 
-export function SessionTopbar({ sessionId }: { sessionId: string }) {
+export function SessionTopbar({ sessionId, build }: { sessionId: string; build?: string }) {
   const [link, setLink] = useState('');
   useEffect(() => { setLink(window.location.href); }, []);
   async function copy() {
@@ -30,6 +30,7 @@ export function SessionTopbar({ sessionId }: { sessionId: string }) {
       </div>
       <div className="rounded-xl border px-4 py-2 text-sm text-slate-700 dark:text-slate-400 overflow-x-auto">
         Share link: <span className="font-mono text-slate-800 dark:text-slate-100" suppressHydrationWarning>{link}</span>
+        {build && <span className="ml-2 text-xs text-slate-500">build {build}</span>}
       </div>
     </div>
   );

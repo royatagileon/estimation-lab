@@ -12,4 +12,6 @@ export default async function SessionBoardPage({ params }: { params: Promise<{ i
   );
 }
 
+export const dynamic = 'force-dynamic';
+
 
