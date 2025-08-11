@@ -28,7 +28,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn("min-h-screen bg-background text-foreground antialiased", inter.variable)}>
+      <body className={cn(
+        "min-h-screen antialiased",
+        "bg-gradient-to-b from-neutral-50 to-white dark:from-neutral-950 dark:to-neutral-950",
+        inter.variable
+      )}>
         <Providers>
           <div className="mx-auto max-w-7xl px-4">
             <GlobalHeader />

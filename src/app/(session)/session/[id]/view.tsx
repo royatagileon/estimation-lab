@@ -135,7 +135,7 @@ export function SessionView({ id }: { id: string }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-      <aside className="md:col-span-4 surface p-5 rounded-2xl">
+      <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
         <h2 className="font-semibold mb-2">Participants</h2>
         <div className="max-h-56 md:max-h-64 overflow-auto pr-1">
           <ul className="text-sm space-y-1">
@@ -289,7 +289,7 @@ export function SessionView({ id }: { id: string }) {
         )}
       </aside>
 
-      <main className="md:col-span-4 surface p-5 rounded-2xl">
+      <main className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         <div className="grid grid-cols-4 gap-3">
@@ -368,7 +368,7 @@ export function SessionView({ id }: { id: string }) {
         </div>
       </main>
 
-      <aside className="md:col-span-4 surface p-5 rounded-2xl">
+      <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
         <h2 className="font-semibold mb-2">Similar Items</h2>
         <p className="text-sm text-gray-500">Model suggestion and neighbors…</p>
         {s.finalizedItems && s.finalizedItems.length > 0 && (
