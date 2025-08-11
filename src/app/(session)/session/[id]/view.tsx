@@ -33,6 +33,16 @@ export function SessionView({ id }: { id: string }) {
       .filter((v:number)=> !isNaN(v) && v>0);
   }, [s?.participants]);
   const unanimous = useMemo(() => numericVotes.length>0 && numericVotes.every(v=>v===numericVotes[0]), [numericVotes]);
+  const highLow = useMemo(() => {
+    const parts = (s?.participants ?? []) as Array<any>;
+    const nums = parts.map(p => ({ id: p.id, name: p.name, v: Number(p.vote) })).filter(x => Number.isFinite(x.v));
+    if (nums.length === 0) return null as null | { high: { name: string; v: number }; low: { name: string; v: number } };
+    const maxV = Math.max(...nums.map(n=>n.v));
+    const minV = Math.min(...nums.map(n=>n.v));
+    const low = parts.find(p => Number(p.vote) === minV);
+    const high = parts.find(p => Number(p.vote) === maxV);
+    return { high: { name: high?.name ?? '—', v: maxV }, low: { name: low?.name ?? '—', v: minV } };
+  }, [s?.participants]);
   useEffect(() => {
     if (s?.round?.status === 'revealed' && unanimous) {
       import('canvas-confetti').then(({ default: confetti }) => {
@@ -124,16 +134,21 @@ export function SessionView({ id }: { id: string }) {
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
       <aside className="md:col-span-4 surface p-5 rounded-2xl">
         <h2 className="font-semibold mb-2">Participants</h2>
-        <ul className="text-sm space-y-1">
-          {s.participants.map((p: any) => (
-            <li key={p.id} className={p.id===s.facilitatorId? 'font-semibold' : ''}>
-              {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''} {p.id===s.facilitatorId && <span aria-label="Facilitator" title="Facilitator">👑</span>}
-              {iAmFacilitator && p.id !== s.facilitatorId && (
-                <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="max-h-56 md:max-h-64 overflow-auto pr-1">
+          <ul className="text-sm space-y-1">
+            {s.participants.map((p: any) => {
+              const votedClass = p.voted ? 'text-emerald-700 dark:text-emerald-300' : '';
+              return (
+                <li key={p.id} className={`${p.id===s.facilitatorId? 'font-semibold' : ''} ${votedClass}`}>
+                  {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''} {p.id===s.facilitatorId && <span aria-label="Facilitator" title="Facilitator">👑</span>}
+                  {iAmFacilitator && p.id !== s.facilitatorId && (
+                    <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
         <div className="text-xs text-gray-500 mt-2">Share: <Link href={shareLink} className="underline">{shareLink}</Link></div>
         <div className="text-xs text-gray-500">Code: {s.code}</div>
         {notJoined && (
@@ -150,7 +165,7 @@ export function SessionView({ id }: { id: string }) {
                 <>
                   <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>New Work Item</button>
                   {s.round.itemTitle && (
-                    <div className="mt-3 text-sm text-neutral-600">
+                    <div className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
                       <div className="font-medium">{s.round.itemTitle}</div>
                       {s.round.itemDescription && <div className="whitespace-pre-wrap">{s.round.itemDescription}</div>}
                       {s.round.acceptanceCriteria && (
@@ -193,7 +208,7 @@ export function SessionView({ id }: { id: string }) {
               )}
             </div>
           ) : (
-            <div className="text-sm text-neutral-600">
+            <div className="text-sm text-neutral-600 dark:text-neutral-300">
               {s.round.itemTitle && (
                 <div className="space-y-2">
                   <div className="font-medium">{s.round.itemTitle}</div>
@@ -303,7 +318,7 @@ export function SessionView({ id }: { id: string }) {
                 ) : s.round.results.withinWindow ? (
                   <div className="text-emerald-700 dark:text-emerald-300">Ready to finalize at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
                 ) : (
-                  <div className="text-[--color-warn-fg] dark:text-amber-200">Spread detected. Consider a short discussion, then press Revote.</div>
+                  <div className="text-[--color-warn-fg] dark:text-amber-200">Spread detected. High: {highLow?.high.name} ({highLow?.high.v}) · Low: {highLow?.low.name} ({highLow?.low.v}). Consider a short discussion, then press Revote.</div>
                 )}
               </div>
             )}
