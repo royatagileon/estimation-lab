@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, Suspense } from "react";
-import { Crown } from "lucide-react";
+import { Crown, Check, X as XIcon, Trash2, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { fireConfettiOnce } from '@/lib/confetti';
 import useSWR from "swr";
@@ -27,6 +27,7 @@ export function SessionView({ id }: { id: string }) {
   const [criteria, setCriteria] = useState<string[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<string,string>>({});
   const [showOtherTasks, setShowOtherTasks] = useState(false);
+  const [confirmRemoveCriteriaIdx, setConfirmRemoveCriteriaIdx] = useState<number|null>(null);
 
   // Derivations and effects must be declared before any return
   const numericVotes = useMemo(() => {
@@ -211,13 +212,51 @@ export function SessionView({ id }: { id: string }) {
                   <div>
                     <label className="block text-sm font-medium mb-1">Acceptance criteria</label>
                     <div className="space-y-2">
-                      {criteria.map((c, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }} />
-                          <button className="text-xs underline" onClick={()=>{ const next=criteria.slice(); next.splice(idx,1); setCriteria(next); }}>Remove</button>
-                        </div>
-                      ))}
-                      <button className="rounded-full border px-3 py-1.5 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
+                      {criteria.map((c, idx) => {
+                        const confirm = confirmRemoveCriteriaIdx === idx;
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <div className={`flex items-center gap-2 ${confirm ? 'bg-red-50 dark:bg-red-900/20 rounded-lg p-1' : ''}`}>
+                              <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }} />
+                              <button
+                                type="button"
+                                aria-label="Add criteria below"
+                                className="h-8 w-8 rounded-full grid place-items-center bg-emerald-500 text-white"
+                                onClick={()=>{
+                                  const next = criteria.slice();
+                                  next.splice(idx+1, 0, '');
+                                  setCriteria(next);
+                                }}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={confirm ? 'Confirm remove criteria' : 'Remove criteria'}
+                                className="h-8 w-8 rounded-full grid place-items-center bg-red-500 text-white"
+                                onClick={()=>{
+                                  if (confirm) {
+                                    const next = criteria.slice();
+                                    next.splice(idx,1);
+                                    setCriteria(next);
+                                    setConfirmRemoveCriteriaIdx(null);
+                                  } else {
+                                    setConfirmRemoveCriteriaIdx(idx);
+                                  }
+                                }}
+                              >
+                                <XIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                            {confirm && (
+                              <div className="text-xs text-red-600 dark:text-red-300">Click X to remove</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div>
+                        <button type="button" className="rounded-xl border px-3 py-2 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -264,27 +303,44 @@ export function SessionView({ id }: { id: string }) {
             <div className="space-y-2">
               {(() => {
                 const allTasks = (s.round.tasks ?? []) as any[];
+                const order = (t:any) => t.status==='approved' ? 2 : t.status==='rejected' ? 1 : 0;
+                const byCreated = (a:any,b:any) => (a.createdAt??0) - (b.createdAt??0);
                 const approved = allTasks.filter(t=>t.status==='approved');
-                const others = allTasks.filter(t=>t.status!=='approved');
-                const list = s.round.status === 'voting' && !showOtherTasks ? approved : allTasks;
+                const baseList = s.round.status === 'voting' && !showOtherTasks ? approved : allTasks;
+                const list = baseList.slice().sort((a,b)=> order(a)-order(b) || byCreated(a,b));
                 return list.map((t:any) => (
-                <div key={t.id} className={`rounded-xl border p-2 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
-                  <textarea className="w-full rounded border px-2 py-1 bg-transparent outline-none resize-y min-h-[40px]" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))} onBlur={async(e)=>{
-                    const val = (e.target as HTMLTextAreaElement).value;
-                    await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
-                    setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
-                    mutate();
-                  }} />
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{t.status}</span>
-                    {iAmFacilitator && t.status!=='approved' && (
-                      <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Approve</button>
-                    )}
-                    {iAmFacilitator && t.status!=='rejected' && (
-                      <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reject_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Reject</button>
-                    )}
+                  <div key={t.id} className="group text-sm border rounded-lg p-2">
+                    <div className="flex items-start gap-2">
+                      <textarea className="w-full rounded border px-2 py-1 bg-transparent outline-none resize-y min-h-[40px]" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))} onBlur={async(e)=>{
+                        const val = (e.target as HTMLTextAreaElement).value;
+                        await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
+                        setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
+                        mutate();
+                      }} />
+                      {iAmFacilitator && (
+                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {t.status!=='approved' && (
+                            <button className="h-7 w-7 grid place-items-center rounded bg-emerald-500 text-white" title="Approve" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
+                              <Check className="h-4 w-4" />
+                            </button>
+                          )}
+                          {t.status!=='rejected' && (
+                            <button className="h-7 w-7 grid place-items-center rounded bg-red-500 text-white" title="Reject" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reject_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
+                              <XIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button className="h-7 w-7 grid place-items-center rounded bg-slate-200 dark:bg-neutral-800" title="Remove" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'remove_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`text-xs ${t.status==='pending' ? 'text-slate-500 dark:text-slate-400' : t.status==='approved' ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                        {t.status}
+                      </span>
+                    </div>
                   </div>
-                </div>
                 ));
               })()}
               {s.round.status === 'voting' && (s.round.tasks ?? []).some((t:any)=>t.status!=='approved') && (

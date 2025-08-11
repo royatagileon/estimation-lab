@@ -44,6 +44,10 @@ export async function POST(req: Request, ctx: any) {
     const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, status: 'rejected' } : t);
+  } else if (body.action === 'remove_task') {
+    const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.round.tasks = (s.round.tasks ?? []).filter(t => t.id !== taskId);
   } else if (body.action === 'edit_task') {
     const { taskId, text } = body as { taskId: string; text: string };
     s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, text: String(text).slice(0, 200) } : t);

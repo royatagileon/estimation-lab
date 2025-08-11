@@ -111,11 +111,13 @@ export async function POST(req: NextRequest, ctx: any) {
       return NextResponse.json({ error: "not_finalizable" }, { status: 400 });
     }
     s.finalizedItems = s.finalizedItems ?? [];
+    const roundTasks = (s.round.tasks ?? []);
+    const approvedTasks = roundTasks.filter((t:any)=> t.status === 'approved').map((t:any)=>({ id: t.id, text: t.text, status: t.status }));
     s.finalizedItems.push({
       title: (s.round.itemTitle && s.round.itemTitle.trim().length>0) ? s.round.itemTitle : 'Unrefined item',
       description: s.round.itemDescription,
       acceptanceCriteria: s.round.acceptanceCriteria,
-      tasks: (s.round.tasks ?? []).map((t:any)=>({ id: t.id, text: t.text, status: t.status })),
+      tasks: approvedTasks,
       value: String(res.rounded),
       average: res.average ?? 0,
       decidedAt: Date.now(),
@@ -124,7 +126,10 @@ export async function POST(req: NextRequest, ctx: any) {
       `Finalized "${s.round.itemTitle ?? s.title}" at ${String(res.rounded)}`,
       ...((s.activity ?? []).slice(0, 99))
     ];
-    s.round = { status: "idle" };
+    // Keep working item on the left; remove approved tasks, keep pending/rejected for further refinement
+    s.round.status = 'idle';
+    s.round.results = undefined;
+    s.round.tasks = roundTasks.filter((t:any)=> t.status !== 'approved');
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   }
 

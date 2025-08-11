@@ -9,7 +9,8 @@ jobs:
   deploy:
     name: Trigger Vercel Deploy Hook
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERCEL_DEPLOY_HOOK_URL != '' }}
+    if: ${{ secrets.VERCEL_DEPLOY_HOOK_URL != 'https://api.vercel.com/v1/integrations/deploy/prj_YvRlHkpzzv491EVBMYVs9t9keYuU/KM6WkwNG4o
+    ' }}
     steps:
       - name: Call Vercel Deploy Hook
         run: |
@@ -17,6 +18,6 @@ jobs:
           echo "Triggering Vercel deploy..."
           curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
         env:
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.Vhttps://api.vercel.com/v1/integrations/deploy/prj_YvRlHkpzzv491EVBMYVs9t9keYuU/KM6WkwNG4o }}
 
 
