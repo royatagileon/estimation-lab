@@ -55,6 +55,7 @@ export type Session = {
     title: string;
     description?: string;
     acceptanceCriteria?: string;
+    tasks?: Array<{ id: string; text: string; status: 'pending'|'approved'|'rejected' }>; 
     value: string;            // finalized deck value
     average: number;          // numeric average before rounding
     decidedAt: number;

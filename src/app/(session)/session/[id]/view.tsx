@@ -360,7 +360,7 @@ export function SessionView({ id }: { id: string }) {
                 <button className="rounded-xl bg-emerald-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
                   await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'finalize_confirm', actorParticipantId: myPid }) });
                   mutate();
-                }}>Confirm finalize</button>
+                }}>Move to Ready</button>
               </div>
             )}
           </motion.div>
@@ -368,17 +368,34 @@ export function SessionView({ id }: { id: string }) {
       </main>
 
       <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
-        <h2 className="font-semibold mb-2">Similar Items</h2>
-        <p className="text-sm text-gray-500">Model suggestion and neighbors…</p>
+        <h2 className="font-semibold mb-2">Ready Work Items</h2>
         {s.finalizedItems && s.finalizedItems.length > 0 && (
           <div className="mt-3">
-            <div className="text-sm font-medium mb-1">Finalized</div>
             <ul className="space-y-2 text-sm">
               {s.finalizedItems.map((fi, idx) => (
-                <li key={idx} className="border rounded p-2">
-                  <div className="font-medium">{fi.title}</div>
-                  <div className="text-xs text-neutral-600">Value: {fi.value} (avg {fi.average.toFixed(1)})</div>
-                </li>
+                <details key={idx} className="border rounded p-2">
+                  <summary className="cursor-pointer font-medium flex items-center justify-between">
+                    <span>{fi.title}</span>
+                    <span className="text-xs">Estimate: {fi.value}</span>
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {fi.description && <div className="text-sm whitespace-pre-wrap">{fi.description}</div>}
+                    {fi.acceptanceCriteria && (
+                      <div>
+                        <div className="text-xs font-medium">Acceptance Criteria</div>
+                        <div className="text-sm whitespace-pre-wrap">{fi.acceptanceCriteria}</div>
+                      </div>
+                    )}
+                    {fi.tasks && fi.tasks.length>0 && (
+                      <div>
+                        <div className="text-xs font-medium">Tasks</div>
+                        <ul className="list-disc pl-4 text-sm space-y-1">
+                          {fi.tasks.map((t:any)=> (<li key={t.id}>{t.text}</li>))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </details>
               ))}
             </ul>
           </div>

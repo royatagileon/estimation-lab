@@ -104,9 +104,10 @@ export async function POST(req: NextRequest, ctx: any) {
     }
     s.finalizedItems = s.finalizedItems ?? [];
     s.finalizedItems.push({
-      title: s.round.itemTitle ?? s.title,
+      title: (s.round.itemTitle && s.round.itemTitle.trim().length>0) ? s.round.itemTitle : 'Unrefined item',
       description: s.round.itemDescription,
       acceptanceCriteria: s.round.acceptanceCriteria,
+      tasks: (s.round.tasks ?? []).map((t:any)=>({ id: t.id, text: t.text, status: t.status })),
       value: String(res.rounded),
       average: res.average ?? 0,
       decidedAt: Date.now(),
