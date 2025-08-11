@@ -4,16 +4,18 @@
 
 /* Design tokens */
 :root {
-  /* Colors */
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --muted: 215 16% 47%;
-  --card: 0 0% 100%;
-  --accent: 213 94% 68%;
-  --success: 142 72% 29%;
-  --warn-bg: 50 100% 97%;
-  --warn-fg: 32 95% 22%;
-  --ring: 217 91% 60%;
+  /* Colors (Light) */
+  --bg-top: #FAFAFA;
+  --bg-bottom: #FFFFFF;
+  --surface: rgba(255,255,255,0.60);
+  --border: rgba(229,229,229,0.80);
+  --text: #111827;
+  --muted: #6B7280;
+  --accent: #4F46E5;
+  --success: #10B981;
+  --warn-bg: #FFF7D6;
+  --warn-fg: #7A4E00;
+  --ring: #4F46E5;
 
   /* Radius */
   --radius-sm: 8px;
@@ -26,30 +28,36 @@
 }
 
 .dark {
-  --background: 222 47% 6%;
-  --foreground: 0 0% 98%;
-  --muted: 216 12% 72%;
-  --card: 222 47% 7%;
-  --accent: 200 98% 39%;
-  --success: 142 71% 45%;
-  --ring: 199 89% 48%;
+  --bg-top: #0A0A0A;
+  --bg-bottom: #0A0A0A;
+  --surface: rgba(11,11,11,0.60);
+  --border: rgba(31,41,55,0.80);
+  --text: #F5F5F5;
+  --muted: #9CA3AF;
+  --accent: #818CF8;
+  --success: #34D399;
+  --ring: #818CF8;
 }
 
 @theme inline {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-muted: hsl(var(--muted));
-  --color-accent: hsl(var(--accent));
-  --color-success: hsl(var(--success));
-  --color-warn-bg: hsl(var(--warn-bg));
-  --color-warn-fg: hsl(var(--warn-fg));
+  --color-background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
+  --color-foreground: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-fg: var(--warn-fg);
   --shadow-1: var(--elevation-1);
   --shadow-2: var(--elevation-2);
   --radius: var(--radius-lg);
   --font-sans: var(--font-sans);
 }
 
-body { font-family: var(--font-sans), ui-sans-serif, system-ui; }
+body { font-family: var(--font-sans), ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial; font-size: 15px; line-height: 1.5; color: var(--text); }
+h1 { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em; }
+small { font-size: 13px; line-height: 20px; font-weight: 500; }
 
 :focus-visible {
   outline: 2px solid #2563eb;
@@ -57,7 +65,7 @@ body { font-family: var(--font-sans), ui-sans-serif, system-ui; }
 }
 
 /* Base utilities */
-.card { background-color: var(--color-background); border-radius: var(--radius); box-shadow: var(--shadow-1); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
 .muted { color: var(--color-muted); }
-.focus-ring:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.surface { background-color: var(--color-background); border: 1px solid color-mix(in oklab, var(--color-foreground) 15%, transparent); border-radius: var(--radius); }
+.focus-ring:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); backdrop-filter: saturate(120%) blur(8px); }
