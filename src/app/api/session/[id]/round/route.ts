@@ -17,13 +17,30 @@ export async function POST(req: NextRequest, ctx: any) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     s.round = {
-      status: "voting",
+      status: "idle",
       itemTitle: String(body.itemTitle || "").slice(0, 200),
       itemDescription: String(body.itemDescription || "").slice(0, 5000),
       acceptanceCriteria: String(body.acceptanceCriteria || "").slice(0, 5000),
     };
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
     s.round.results = undefined;
+    s.round.tasks = s.round.tasks ?? [];
+    s.round.editStatus = 'idle';
+    s.round.editorId = undefined;
+    s.round.editRequestedBy = undefined;
+  } else if (body.action === 'start_voting') {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    const tasks = s.round.tasks ?? [];
+    const hasApproved = tasks.some(t => t.status === 'approved');
+    const anyTasks = tasks.length > 0;
+    const allow = hasApproved || !anyTasks || Boolean(body.allowWithoutTasks);
+    if (!allow) {
+      return NextResponse.json({ error: 'tasks_required' }, { status: 400 });
+    }
+    s.round.status = 'voting';
+    s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   } else if (body.action === "reveal") {
     if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

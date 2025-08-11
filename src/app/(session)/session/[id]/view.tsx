@@ -182,13 +182,13 @@ export function SessionView({ id }: { id: string }) {
                     )}
                   </div>
                   {s.round.itemTitle && (
-                    <div className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
-                      <div className="font-medium">{s.round.itemTitle}</div>
-                      {s.round.itemDescription && <div className="whitespace-pre-wrap">{s.round.itemDescription}</div>}
+                    <div className="mt-3 rounded-xl border p-3">
+                      <div className="font-medium mb-1">{s.round.itemTitle}</div>
+                      {s.round.itemDescription && <div className="whitespace-pre-wrap text-sm text-neutral-600 dark:text-neutral-300">{s.round.itemDescription}</div>}
                       {s.round.acceptanceCriteria && (
-                        <div className="mt-1">
+                        <div className="mt-2">
                           <div className="text-xs font-medium">Acceptance Criteria</div>
-                          <div className="whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
+                          <div className="whitespace-pre-wrap text-sm text-neutral-600 dark:text-neutral-300">{s.round.acceptanceCriteria}</div>
                         </div>
                       )}
                     </div>
@@ -218,7 +218,7 @@ export function SessionView({ id }: { id: string }) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Update' : 'Start'}</button>
+                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Update' : 'Show'}</button>
                     <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
                     {s.round.editStatus==='granted' && s.round.editorId===myPid && (
                       <button className="rounded-xl border px-4 py-2 text-sm" onClick={async()=>{
@@ -233,13 +233,13 @@ export function SessionView({ id }: { id: string }) {
           ) : (
             <div className="text-sm text-neutral-600 dark:text-neutral-300">
               {s.round.itemTitle && (
-                <div className="space-y-2">
-                  <div className="font-medium">{s.round.itemTitle}</div>
-                  {s.round.itemDescription && <div className="whitespace-pre-wrap">{s.round.itemDescription}</div>}
+                <div className="space-y-2 rounded-xl border p-3">
+                  <div className="font-medium mb-1">{s.round.itemTitle}</div>
+                  {s.round.itemDescription && <div className="whitespace-pre-wrap text-sm">{s.round.itemDescription}</div>}
                   {s.round.acceptanceCriteria && (
                     <div>
                       <div className="text-xs font-medium">Acceptance Criteria</div>
-                      <div className="whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
+                      <div className="whitespace-pre-wrap text-sm">{s.round.acceptanceCriteria}</div>
                     </div>
                   )}
                   {!iCanEditWorkItem && (
@@ -260,14 +260,14 @@ export function SessionView({ id }: { id: string }) {
             <div className="text-sm font-medium mb-1">Tasks</div>
             <div className="space-y-2">
               {(s.round.tasks ?? []).map((t:any) => (
-                <div key={t.id} className={`flex items-center justify-between rounded border px-2 py-1 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
-                  <input className="flex-1 bg-transparent outline-none" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: e.target.value }))} onBlur={async(e)=>{
-                    const val = (e.target as HTMLInputElement).value;
+                <div key={t.id} className={`rounded-xl border p-2 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
+                  <textarea className="w-full rounded border px-2 py-1 bg-transparent outline-none resize-y min-h-[40px]" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))} onBlur={async(e)=>{
+                    const val = (e.target as HTMLTextAreaElement).value;
                     await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
                     setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
                     mutate();
                   }} />
-                  <div className="flex items-center gap-2">
+                  <div className="mt-1 flex items-center gap-2">
                     <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{t.status}</span>
                     {iAmFacilitator && t.status!=='approved' && (
                       <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Approve</button>
@@ -318,9 +318,13 @@ export function SessionView({ id }: { id: string }) {
           </div>
         )}
 
-        <div className="mt-3 flex gap-2 items-center">
+          <div className="mt-3 flex gap-2 items-center">
           <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
+            <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
+            <button className={`rounded px-3 py-2 text-sm border ${iAmFacilitator && ((s.round.tasks??[]).some(t=>t.status==='approved') || (s.round.tasks??[]).length===0) ? 'bg-emerald-500 text-white' : 'opacity-50'}`} disabled={!iAmFacilitator} onClick={async()=>{
+              await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
+              mutate();
+            }}>Play poker</button>
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
