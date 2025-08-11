@@ -19,6 +19,21 @@ export type Round = {
     rounded?: number; // mapped deck value for refinement poker
     unanimous?: boolean;
   };
+  tasks?: Array<{
+    id: string;
+    text: string;
+    by: string; // participantId
+    approved: boolean;
+    createdAt: number;
+  }>;
+  suggestions?: Array<{
+    id: string;
+    by: string; // participantId
+    title?: string;
+    description?: string;
+    criteria?: string;
+    createdAt: number;
+  }>;
 };
 
 export type Session = {

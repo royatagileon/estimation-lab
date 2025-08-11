@@ -163,7 +163,9 @@ export function SessionView({ id }: { id: string }) {
             <div>
               {!showEditor && (
                 <>
-                  <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>New Work Item</button>
+                  <div className="flex gap-2">
+                    <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>{s.round.itemTitle ? 'Edit' : 'New Work Item'}</button>
+                  </div>
                   {s.round.itemTitle && (
                     <div className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
                       <div className="font-medium">{s.round.itemTitle}</div>
@@ -219,11 +221,47 @@ export function SessionView({ id }: { id: string }) {
                       <div className="whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
                     </div>
                   )}
+                  <button className="rounded-full border px-3 py-1.5 text-xs" onClick={async()=>{
+                    if (!myPid) return;
+                    await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'suggest_edit', by: myPid, title: s.round.itemTitle, description: s.round.itemDescription, criteria: s.round.acceptanceCriteria }) });
+                  }}>Request edit</button>
                 </div>
               )}
             </div>
           )}
         </div>
+        {/* Tasks section */}
+        {s.round.status !== 'idle' && (
+          <div className="mt-4">
+            <div className="text-sm font-medium mb-1">Tasks</div>
+            <div className="space-y-2">
+              {(s.round.tasks ?? []).map((t:any) => (
+                <div key={t.id} className="flex items-center justify-between rounded border px-2 py-1 text-sm">
+                  <span className={`${t.approved ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>{t.text}</span>
+                  {!t.approved && iAmFacilitator && (
+                    <button className="text-xs underline" onClick={async()=>{
+                      await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) });
+                      mutate();
+                    }}>Approve</button>
+                  )}
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" placeholder="Propose a task…" onKeyDown={async(e)=>{
+                  if (e.key === 'Enter') {
+                    const target = e.target as HTMLInputElement;
+                    const text = target.value.trim();
+                    if (!text) return;
+                    const by = myPid ?? '';
+                    await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'add_task', by, text }) });
+                    target.value = '';
+                    mutate();
+                  }
+                }} />
+              </div>
+            </div>
+          </div>
+        )}
       </aside>
 
       <main className="md:col-span-4 surface p-5 rounded-2xl">

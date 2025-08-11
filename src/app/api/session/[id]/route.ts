@@ -14,16 +14,34 @@ export async function GET(_: Request, ctx: any) {
 
 export async function POST(req: Request, ctx: any) {
   const { params } = ctx as { params: { id: string } };
-  const { action, toParticipantId, actorParticipantId } = await req.json();
-  if (action !== 'transfer_facilitator' || !toParticipantId) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  const body = await req.json();
   await ensureSessionsTable();
   const sql = getSql();
   const rows = (await sql`select data from sessions where id = ${params.id} limit 1`) as Array<{ data: Session }>;
   if (!rows.length) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const s = rows[0].data;
-  if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-  if (!s.participants.some(p=>p.id===toParticipantId)) return NextResponse.json({ error: 'participant' }, { status: 400 });
-  s.facilitatorId = toParticipantId;
+
+  if (body.action === 'transfer_facilitator') {
+    const { toParticipantId, actorParticipantId } = body as { toParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (!s.participants.some(p=>p.id===toParticipantId)) return NextResponse.json({ error: 'participant' }, { status: 400 });
+    s.facilitatorId = toParticipantId;
+  } else if (body.action === 'suggest_edit') {
+    const { by, title, description, criteria } = body as { by: string; title?: string; description?: string; criteria?: string };
+    s.round.suggestions = s.round.suggestions ?? [];
+    s.round.suggestions.push({ id: String(Date.now()), by, title, description, criteria, createdAt: Date.now() });
+  } else if (body.action === 'add_task') {
+    const { by, text } = body as { by: string; text: string };
+    s.round.tasks = s.round.tasks ?? [];
+    s.round.tasks.push({ id: String(Date.now()), text: String(text).slice(0, 200), by, approved: false, createdAt: Date.now() });
+  } else if (body.action === 'approve_task') {
+    const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, approved: true } : t);
+  } else {
+    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  }
+
   await sql`update sessions set data = ${JSON.stringify(s)}::jsonb where id = ${params.id}`;
   return NextResponse.json({ ok: true });
 }
