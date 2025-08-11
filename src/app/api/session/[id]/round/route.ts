@@ -64,6 +64,19 @@ export async function POST(req: NextRequest, ctx: any) {
     }
   }
 
+  if (body.action === 'update') {
+    const { itemTitle, itemDescription, acceptanceCriteria, by } = body as { itemTitle?: string; itemDescription?: string; acceptanceCriteria?: string; by?: string };
+    // Allow facilitator or granted editor to update
+    const isFac = !!s.facilitatorId && s.facilitatorId === by;
+    const isGranted = s.round.editorId && s.round.editorId === by && s.round.editStatus === 'granted';
+    if (!isFac && !isGranted) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+    if (typeof itemTitle === 'string') s.round.itemTitle = String(itemTitle).slice(0, 200);
+    if (typeof itemDescription === 'string') s.round.itemDescription = String(itemDescription).slice(0, 5000);
+    if (typeof acceptanceCriteria === 'string') s.round.acceptanceCriteria = String(acceptanceCriteria).slice(0, 5000);
+  }
+
   if (body.action === "finalize_confirm") {
     if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

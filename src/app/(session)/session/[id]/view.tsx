@@ -165,6 +165,12 @@ export function SessionView({ id }: { id: string }) {
                 <>
                   <div className="flex gap-2">
                     <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>{s.round.itemTitle ? 'Edit' : 'New Work Item'}</button>
+                    {s.round.editStatus==='requested' && iAmFacilitator && (
+                      <button className="rounded-xl border px-3 py-2 text-sm" onClick={async()=>{
+                        await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'grant_edit', actorParticipantId: myPid, toParticipantId: s.round.editRequestedBy }) });
+                        mutate();
+                      }}>Grant edit</button>
+                    )}
                   </div>
                   {s.round.itemTitle && (
                     <div className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
@@ -203,8 +209,14 @@ export function SessionView({ id }: { id: string }) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>Start</button>
+                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Update' : 'Start'}</button>
                     <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
+                    {s.round.editStatus==='granted' && s.round.editorId===myPid && (
+                      <button className="rounded-xl border px-4 py-2 text-sm" onClick={async()=>{
+                        await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'finish_edit', by: myPid }) });
+                        mutate();
+                      }}>Finish</button>
+                    )}
                   </div>
                 </div>
               )}
