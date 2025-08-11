@@ -111,6 +111,10 @@ export async function POST(req: NextRequest, ctx: any) {
       average: res.average ?? 0,
       decidedAt: Date.now(),
     });
+    s.activity = [
+      `Finalized "${s.round.itemTitle ?? s.title}" at ${String(res.rounded)}`,
+      ...((s.activity ?? []).slice(0, 99))
+    ];
     s.round = { status: "idle" };
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   }

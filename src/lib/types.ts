@@ -59,6 +59,7 @@ export type Session = {
     average: number;          // numeric average before rounding
     decidedAt: number;
   }>;
+  activity?: string[];
 };
 
 export type SessionState = Session;
