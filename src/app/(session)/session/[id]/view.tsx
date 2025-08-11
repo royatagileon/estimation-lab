@@ -83,6 +83,16 @@ export function SessionView({ id }: { id: string }) {
 
   async function vote(v: string | number) {
     if (!myPid) return;
+    // tap again to clear
+    const myCurrent = s?.participants.find((p:any)=>p.id===myPid)?.vote;
+    if (String(myCurrent) === String(v)) {
+      await fetch(`/api/session/${s!.id}/vote`, {
+        method: 'POST', headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ participantId: myPid, value: null })
+      });
+      mutate();
+      return;
+    }
     await mutate(async (curr) => {
       if (!curr) return curr as any;
       const next = { ...curr } as Session;
@@ -308,8 +318,12 @@ export function SessionView({ id }: { id: string }) {
                   const clear = ()=> { clearTimeout(id); window.removeEventListener('mouseup', clear); window.removeEventListener('mouseleave', clear); };
                   window.addEventListener('mouseup', clear); window.addEventListener('mouseleave', clear);
                 }}
-                className={`h-11 rounded-lg border text-sm font-medium select-none focus-ring grid place-items-center transition ${
-                  selected ? 'bg-green-500 text-white border-green-500' : s.round.status==='voting' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800/40'
+                className={`h-16 min-w-[56px] px-4 rounded-xl border text-base font-semibold select-none focus-ring grid place-items-center shadow transition ${
+                  selected
+                    ? 'bg-green-500 text-white border-green-600'
+                    : s.round.status==='voting'
+                      ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
+                      : 'bg-white/70 dark:bg-neutral-900/70 text-neutral-800 dark:text-neutral-100 hover:bg-white dark:hover:bg-neutral-900'
                 }`}
                 aria-label={`vote ${v}`}
                 onClick={()=>vote(v as any)}
@@ -319,10 +333,7 @@ export function SessionView({ id }: { id: string }) {
             );
           })}
         </div>
-        <div className="mt-2 flex items-center justify-between">
-          <small className="muted">Tap again to clear</small>
-          <button className="text-xs underline" onClick={unvote}>Clear</button>
-        </div>
+        <div className="mt-2"><small className="muted">Tap your selection again to clear</small></div>
 
         {isBusiness && (
           <div className="mt-3">
@@ -338,12 +349,6 @@ export function SessionView({ id }: { id: string }) {
         <div className="mt-3 flex gap-2 items-center">
           <button className="border rounded px-3 py-2 disabled:opacity-50 transition hover:scale-[1.01]" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
           <button className="border rounded px-3 py-2 disabled:opacity-50 transition hover:scale-[1.01]" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
-          {iAmFacilitator && s.round.status==='voting' && (
-            <button className="border rounded px-3 py-2 transition hover:scale-[1.01]" onClick={async()=>{
-              await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'end_voting', actorParticipantId: myPid }) });
-              mutate();
-            }}>End poker</button>
-          )}
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
@@ -362,10 +367,19 @@ export function SessionView({ id }: { id: string }) {
                 )}
               </div>
             )}
+            {iAmFacilitator && s.round.status==='voting' && (
+              <div className="flex items-center gap-2">
+                <span>If you would like to refine the work item more…</span>
+                <button className="rounded px-2 py-1 text-xs border" onClick={async()=>{
+                  await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'end_voting', actorParticipantId: myPid }) });
+                  mutate();
+                }}>End poker</button>
+              </div>
+            )}
             {s.round.status === 'revealed' && s.round.results?.allVoted && (
               <div>
                 {s.round.results.unanimous ? (
-                  <div className="text-emerald-700 dark:text-emerald-300">Unanimous! Everyone selected the same card.</div>
+                  <div className="text-emerald-700 dark:text-emerald-300">Confetti! We all played the {(() => { const map = new Map<string,number>(); s.participants.forEach((p:any)=>{ if(p.vote) map.set(String(p.vote),(map.get(String(p.vote))||0)+1); }); const top=[...map.entries()].sort((a,b)=>b[1]-a[1])[0]; return top? top[0]: 'same card'; })()} card!</div>
                 ) : s.round.results.withinWindow ? (
                   <div className="text-emerald-700 dark:text-emerald-300">Ready to finalize at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
                 ) : (
