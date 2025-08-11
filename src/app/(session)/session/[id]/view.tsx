@@ -142,11 +142,73 @@ export function SessionView({ id }: { id: string }) {
             <button disabled={joining} className="w-full border rounded px-3 py-2 disabled:opacity-50" onClick={selfJoin}>{joining ? 'Joining…' : 'Join Session'}</button>
           </div>
         )}
-        {iAmFacilitator && (
-          <div className="mt-3">
-            <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>New Work Item</button>
-          </div>
-        )}
+        <div className="mt-5">
+          <h3 className="text-sm font-medium mb-2">Work item</h3>
+          {iAmFacilitator ? (
+            <div>
+              {!showEditor && (
+                <>
+                  <button className="border rounded px-3 py-2 w-full" onClick={openEditor}>New Work Item</button>
+                  {s.round.itemTitle && (
+                    <div className="mt-3 text-sm text-neutral-600">
+                      <div className="font-medium">{s.round.itemTitle}</div>
+                      {s.round.itemDescription && <div className="whitespace-pre-wrap">{s.round.itemDescription}</div>}
+                      {s.round.acceptanceCriteria && (
+                        <div className="mt-1">
+                          <div className="text-xs font-medium">Acceptance Criteria</div>
+                          <div className="whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {showEditor && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Title</label>
+                    <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <textarea className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40" value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Acceptance criteria</label>
+                    <div className="space-y-2">
+                      {criteria.map((c, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }} />
+                          <button className="text-xs underline" onClick={()=>{ const next=criteria.slice(); next.splice(idx,1); setCriteria(next); }}>Remove</button>
+                        </div>
+                      ))}
+                      <button className="rounded-full border px-3 py-1.5 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>Start</button>
+                    <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-neutral-600">
+              {s.round.itemTitle && (
+                <div className="space-y-2">
+                  <div className="font-medium">{s.round.itemTitle}</div>
+                  {s.round.itemDescription && <div className="whitespace-pre-wrap">{s.round.itemDescription}</div>}
+                  {s.round.acceptanceCriteria && (
+                    <div>
+                      <div className="text-xs font-medium">Acceptance Criteria</div>
+                      <div className="whitespace-pre-wrap">{s.round.acceptanceCriteria}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </aside>
 
       <main className="md:col-span-4 surface p-5 rounded-2xl">
@@ -237,11 +299,11 @@ export function SessionView({ id }: { id: string }) {
             {s.round.status === 'revealed' && s.round.results?.allVoted && (
               <div>
                 {s.round.results.unanimous ? (
-                  <div className="text-emerald-300">Unanimous! Everyone selected the same card.</div>
+                  <div className="text-emerald-700 dark:text-emerald-300">Unanimous! Everyone selected the same card.</div>
                 ) : s.round.results.withinWindow ? (
                   <div className="text-emerald-700 dark:text-emerald-300">Ready to finalize at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
                 ) : (
-                  <div className="text-amber-200">Spread detected. Consider a short discussion, then press Revote.</div>
+                  <div className="text-[--color-warn-fg] dark:text-amber-200">Spread detected. Consider a short discussion, then press Revote.</div>
                 )}
               </div>
             )}
