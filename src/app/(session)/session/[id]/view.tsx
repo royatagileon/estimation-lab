@@ -181,221 +181,21 @@ export function SessionView({ id }: { id: string }) {
     }
   }
 
-  // ===== Blackjack Hidden Game =====
-  const bjUnlockSeq = useMemo(() => ['21','2','1','21','X'], []);
-  const [bjUnlockIndex, setBjUnlockIndex] = useState(0);
-  const [bjUnlocked, setBjUnlocked] = useState(false);
-  const [bjActive, setBjActive] = useState(false);
-  const [inviteMode, setInviteMode] = useState(false);
-  const [bjPair, setBjPair] = useState<{ inviterId: string; inviteeId: string } | null>(null);
-  const [bjHostId, setBjHostId] = useState<string | null>(null);
-  const [bjAria, setBjAria] = useState('');
-  const [bjState, setBjState] = useState<null | {
-    deckIdx: number[]; // 12 shuffled indices into fib deck
-    ptr: number;
-    player: { cards: number[]; aces: number };
-    dealer: { cards: number[]; aces: number; holeRevealed: boolean };
-    playerActionCount: number;
-    locked: boolean;
-    scores: Record<string, number>; // by participant id
-    target: number;
-    roundDone: boolean;
-  }>(null);
+  // Blackjack removed
   const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
   // Ephemeral reactions for participants (show inline emoji for ~5s)
   const [ephemeralReactions, setEphemeralReactions] = useState<Record<string, { kind: 'celebrate'|'thumbs'; until: number }>>({});
   const ephemeralTimers = useRef<Map<string, number>>(new Map());
 
-  function processBJUnlockClick(v: string | number) {
-    if (bjActive) return;
-    const val = String(v);
-    if (val === bjUnlockSeq[bjUnlockIndex]) {
-      const next = bjUnlockIndex + 1;
-      if (next >= bjUnlockSeq.length) {
-        setBjUnlocked(true);
-        setBjUnlockIndex(0);
-      } else {
-        setBjUnlockIndex(next);
-      }
-    } else {
-      setBjUnlockIndex(val === bjUnlockSeq[0] ? 1 : 0);
-    }
-  }
+  //
 
   function fibSymbolAt(index: number) {
     const arr = [0,1,2,3,5,8,13,21,34,55,'?','X'] as any[];
     return arr[index];
   }
-  function bjMapValue(sym: any): { v: number; ace: boolean } {
-    if (sym === '?') return { v: 11, ace: true };
-    if (sym === 'X' || sym === 0 || sym === 13 || sym === 21 || sym === 34 || sym === 55) return { v: 10, ace: false };
-    return { v: Number(sym) || 0, ace: false };
-  }
-  function totalWithAces(cards: number[], aces: number) {
-    let sum = cards.reduce((a,b)=>a+b,0);
-    let soft = false;
-    // aces counted as 11 by default; reduce as needed
-    while (sum > 21 && aces > 0) { sum -= 10; aces--; }
-    if (aces > 0) soft = true; // at least one ace valued 11
-    return { total: sum, soft };
-  }
-  function bjStrongShuffle12(): number[] {
-    const base = Array.from({length:12}, (_,i)=>i);
-    return strongShuffle(base);
-  }
-  function bjDealInitial(deckIdx: number[]) {
-    let ptr = 0;
-    const take = () => deckIdx[ptr++];
-    const p1 = bjMapValue(fibSymbolAt(take()));
-    const d1 = bjMapValue(fibSymbolAt(take()));
-    const p2 = bjMapValue(fibSymbolAt(take()));
-    const d2 = bjMapValue(fibSymbolAt(take()));
-    return {
-      ptr,
-      player: { cards: [p1.v, p2.v], aces: (p1.ace?1:0) + (p2.ace?1:0) },
-      dealer: { cards: [d1.v, d2.v], aces: (d1.ace?1:0) + (d2.ace?1:0), holeRevealed: false },
-    };
-  }
-  function bjBroadcast(payload: any) {
-    fetch(`/api/session/${s!.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'blackjack_event', payload }) });
-  }
-  function bjStartFor(inviterId: string, inviteeId: string) {
-    setBjPair({ inviterId, inviteeId });
-    setBjHostId(inviterId);
-    setBjActive(true);
-    const deckIdx = bjStrongShuffle12();
-    const { ptr, player, dealer } = bjDealInitial(deckIdx);
-    const scores: Record<string, number> = { [inviterId]: 0, [inviteeId]: 0 };
-    const st = { deckIdx, ptr, player, dealer, playerActionCount: 0, locked: false, scores, target: 3, roundDone: false };
-    setBjState(st);
-    bjBroadcast({ type:'state', pair:{inviterId, inviteeId}, hostId: inviterId, state: st });
-  }
-  function bjEnd() {
-    setInviteMode(false);
-    setBjActive(false);
-    setBjPair(null);
-    setBjHostId(null);
-    setBjState(null);
-    setBjUnlocked(false);
-    setBjAria('');
-    bjBroadcast({ type:'end' });
-  }
-  function bjInvite(toId: string) {
-    if (!myPid) return;
-    bjBroadcast({ type:'invite', inviterId: myPid, inviteeId: toId });
-    setInviteMode(false);
-  }
-  function bjAccept(inviterId: string, inviteeId: string) {
-    if (!myPid || myPid !== inviteeId) return;
-    bjBroadcast({ type:'accept', inviterId, inviteeId });
-  }
-  function bjHit(state: any): any {
-    const st = { ...state };
-    const take = () => st.deckIdx[st.ptr++];
-    const card = bjMapValue(fibSymbolAt(take()));
-    st.player.cards = [...st.player.cards, card.v];
-    st.player.aces += card.ace ? 1 : 0;
-    st.playerActionCount += 1;
-    return st;
-  }
-  function bjDealerPlay(state: any): any {
-    const st = { ...state, dealer: { ...state.dealer } };
-    const take = () => st.deckIdx[st.ptr++];
-    st.dealer.holeRevealed = true;
-    let t = totalWithAces(st.dealer.cards, st.dealer.aces).total;
-    while (t <= 16) {
-      const c = bjMapValue(fibSymbolAt(take()));
-      st.dealer.cards.push(c.v);
-      if (c.ace) st.dealer.aces += 1;
-      t = totalWithAces(st.dealer.cards, st.dealer.aces).total;
-    }
-    return st;
-  }
-  function bjResolve(state: any): any {
-    const st = { ...state };
-    const pt = totalWithAces(st.player.cards, st.player.aces).total;
-    const dt = totalWithAces(st.dealer.cards, st.dealer.aces).total;
-    let outcome: 'win'|'lose'|'push' = 'push';
-    if (pt > 21) outcome = 'lose';
-    else if (dt > 21) outcome = 'win';
-    else if (pt > dt) outcome = 'win';
-    else if (pt < dt) outcome = 'lose';
-    const p1 = st.scores[bjPair!.inviterId] ?? 0;
-    const p2 = st.scores[bjPair!.inviteeId] ?? 0;
-    if (outcome === 'win') st.scores[bjPair!.inviterId] = p1 + 1; // attribute to host for simplicity
-    if (outcome === 'lose') st.scores[bjPair!.inviteeId] = p2 + 1;
-    st.roundDone = true;
-    st.locked = false;
-    return st;
-  }
-  function bjHandleAction(fromId: string, action: 'hit'|'stand'|'double') {
-    if (!bjActive || !bjPair || bjHostId !== myPid || !bjState) return; // host processes
-    let st = { ...bjState } as any;
-    if (st.roundDone) return;
-    if (st.locked) return;
-    if (action === 'hit') {
-      st = bjHit(st);
-      const pt = totalWithAces(st.player.cards, st.player.aces).total;
-      if (pt > 21) {
-        st.locked = true;
-        st = bjDealerPlay(st);
-        st = bjResolve(st);
-      }
-    } else if (action === 'double') {
-      if (st.playerActionCount === 0) {
-        st = bjHit(st);
-        st.locked = true;
-        st = bjDealerPlay(st);
-        st = bjResolve(st);
-      } else {
-        return;
-      }
-    } else if (action === 'stand') {
-      st.locked = true;
-      st = bjDealerPlay(st);
-      st = bjResolve(st);
-    }
-    setBjState(st);
-    bjBroadcast({ type:'state', pair: bjPair, hostId: bjHostId, state: st });
-  }
 
   // Consume blackjack events from activity
-  const lastBjTsRef = useRef<number>(0);
-  useEffect(() => {
-    const acts = (s?.activity ?? []).filter(a => a.startsWith?.('BJ:'));
-    for (const raw of acts) {
-      try {
-        const obj = JSON.parse(raw.slice(3));
-        const t = obj.t ?? 0;
-        if (t <= lastBjTsRef.current) continue;
-        lastBjTsRef.current = t;
-        const payload = obj;
-        if (payload.type === 'invite') {
-          if (payload.inviteeId === myPid && !bjActive) {
-            // show join toast via local state
-            setPendingInvite({ inviterId: payload.inviterId, inviteeId: payload.inviteeId });
-          }
-        } else if (payload.type === 'accept') {
-          if (payload.inviterId === myPid && !bjActive) {
-            bjStartFor(payload.inviterId, payload.inviteeId);
-          }
-        } else if (payload.type === 'state') {
-          if (payload.pair && myPid && (myPid === payload.pair.inviterId || myPid === payload.pair.inviteeId)) {
-            setBjPair(payload.pair);
-            setBjHostId(payload.hostId);
-            setBjActive(true);
-            setBjState(payload.state);
-          }
-        } else if (payload.type === 'action') {
-          if (payload.pair && myPid && (myPid === payload.pair.inviterId || myPid === payload.pair.inviteeId) && bjHostId === myPid) {
-            bjHandleAction(payload.from, payload.action);
-          }
-        } else if (payload.type === 'end') {
-          if (bjActive) bjEnd();
-        }
-      } catch {}
-    }
-  }, [s?.activity]);
+  // Removed blackjack event handling
 
   // Inline celebration/thumbs reactions via activity log
   const lastBurstRef = useRef<number>(0);
@@ -570,10 +370,9 @@ export function SessionView({ id }: { id: string }) {
                 <li key={p.id} className="group relative" data-participant-id={p.id}>
                   <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
                     (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
-                  } ${inviteMode? 'cursor-pointer' : ''}`}
-                    title={inviteMode ? 'Click to invite to Blackjack' : assignMode && iAmFacilitator ? 'Click to assign facilitator' : undefined}
+                  }`}
+                    title={assignMode && iAmFacilitator ? 'Click to assign facilitator' : undefined}
                     onClick={async()=>{
-                      if (inviteMode && p.id !== myPid) { bjInvite(p.id); return; }
                       if (assignMode && iAmFacilitator && p.id !== s.facilitatorId) {
                         await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) });
                         setAssignMode(false);
@@ -923,13 +722,7 @@ export function SessionView({ id }: { id: string }) {
       </aside>
 
       <main className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
-        {pendingInvite && myPid === pendingInvite.inviteeId && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border bg-white/90 px-4 py-2 text-sm shadow" role="status" aria-live="polite">
-            <span className="mr-3">Blackjack invite from {s.participants.find((p:any)=>p.id===pendingInvite.inviterId)?.name || 'Player'}</span>
-            <button className="rounded bg-emerald-500 text-white px-2 py-1 mr-2" onClick={()=>{ bjAccept(pendingInvite.inviterId, pendingInvite.inviteeId); }}>Join</button>
-            <button className="rounded border px-2 py-1" onClick={()=>{ setPendingInvite(null); }}>Dismiss</button>
-          </div>
-        )}
+        {/* blackjack UI removed */}
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         <div className="grid grid-cols-4 gap-3">
@@ -963,7 +756,6 @@ export function SessionView({ id }: { id: string }) {
                 aria-label={`vote ${v}`}
                 onClick={()=>{
                   processUnlockClick(v as any);
-                  processBJUnlockClick(v as any);
                   if (secretActive) {
                     const idx = deck.findIndex(d => String(d)===String(v));
                     handleTileClickGame(idx);
@@ -989,22 +781,7 @@ export function SessionView({ id }: { id: string }) {
             <span className="sr-only" role="status" aria-live="polite">{ariaMessage}</span>
           </div>
           <div>
-            {bjUnlocked && !bjActive && s.round.status !== 'voting' && (
-              <button
-                aria-label="Invite"
-                data-testid="bj-invite-toggle"
-                className="rounded-full border bg-white/80 px-3 py-1 text-xs mr-2"
-                onClick={()=> setInviteMode(m=>!m)}
-              >{inviteMode ? 'Cancel' : 'Invite'}</button>
-            )}
-            {bjActive && (
-              <button
-                aria-label="End Blackjack"
-                data-testid="bj-end"
-                className="rounded-full border bg-white/80 px-3 py-1 text-xs mr-2"
-                onClick={()=> bjEnd()}
-              >End Blackjack</button>
-            )}
+            {/* blackjack controls removed */}
             {secretUnlocked && !secretActive && s.round.status !== 'voting' && (
               <button
                 aria-label="Play secret game"
