@@ -60,6 +60,25 @@ export function SessionView({ id }: { id: string }) {
     const high = parts.find(p => Number(p.vote) === maxV);
     return { high: { name: high?.name ?? '—', v: maxV }, low: { name: low?.name ?? '—', v: minV } };
   }, [s?.participants]);
+
+  function getContrastingText(bg: string | undefined): string | undefined {
+    if (!bg) return undefined;
+    try {
+      const ctx = document.createElement('canvas').getContext('2d');
+      if (!ctx) return undefined;
+      ctx.fillStyle = bg;
+      const rgb = ctx.fillStyle as string; // normalized color
+      const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (!m) return undefined;
+      const r = parseInt(m[1],10), g=parseInt(m[2],10), b=parseInt(m[3],10);
+      const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+      return luminance > 0.6 ? '#111' : '#fff';
+    } catch { return undefined; }
+  }
+
+  function randomColor() {
+    return `hsl(${Math.floor(Math.random()*360)}, 85%, 50%)`;
+  }
   useEffect(() => {
     if (s?.round?.status === 'revealed' && unanimous) {
       fireConfettiOnce(`round-${s.id}-${s.createdAt}-${s.finalizedItems?.length ?? 0}`);
@@ -168,21 +187,31 @@ export function SessionView({ id }: { id: string }) {
               const isFac = p.id===s.facilitatorId;
               return (
                 <li key={p.id} className="group">
-                  <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${p.voted? 'border-emerald-300/60': ''}`} onClick={async (e)=>{
-                    if (!iAmFacilitator || isFac) return;
-                    const el = (e.currentTarget as HTMLElement).querySelector('[data-participant-menu]') as HTMLElement | null;
-                    if (el) el.classList.toggle('hidden');
-                  }}>
+                  <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${p.voted? 'border-emerald-300/60': ''}`}>
                     {isFac ? (
                       <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-yellow-400 text-white" title="Facilitator">
                         <Star className="h-3.5 w-3.5" />
                       </span>
                     ) : (
-                      <span className="inline-grid h-6 w-6 place-items-center rounded-full border text-xs" aria-hidden> {p.name?.[0]?.toUpperCase() || 'P'} </span>
+                      <span
+                        className="inline-grid h-6 w-6 place-items-center rounded-full border text-xs"
+                        aria-hidden
+                        style={{ backgroundColor: p.color || undefined, color: p.color ? getContrastingText(p.color) : undefined }}
+                        title="Click to cycle color"
+                        onClick={async()=>{
+                          if (p.id !== myPid) return;
+                          const nextColor = randomColor();
+                          await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'set_participant_color', actorParticipantId: myPid, color: nextColor }) });
+                          mutate();
+                        }}
+                      > {p.name?.[0]?.toUpperCase() || 'P'} </span>
                     )}
                     <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
                     {iAmFacilitator && !isFac && (
-                      <button className="opacity-60 group-hover:opacity-100 transition" title="Actions">
+                      <button className="opacity-60 group-hover:opacity-100 transition" title="Actions" onClick={(e)=>{
+                        const menu = (e.currentTarget.parentElement?.parentElement as HTMLElement).querySelector('[data-participant-menu]') as HTMLElement | null;
+                        if (menu) menu.classList.toggle('hidden');
+                      }}>
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     )}

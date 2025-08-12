@@ -5,6 +5,7 @@ export type Participant = {
   name: string;
   voted: boolean;
   vote?: FibCard;
+  color?: string; // CSS color string for avatar background
 };
 
 export type Round = {

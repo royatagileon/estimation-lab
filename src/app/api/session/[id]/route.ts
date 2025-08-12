@@ -75,6 +75,10 @@ export async function POST(req: Request, ctx: any) {
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     if (s.facilitatorId === targetParticipantId) return NextResponse.json({ error: 'cannot_remove_facilitator' }, { status: 400 });
     s.participants = s.participants.filter(p=>p.id !== targetParticipantId);
+  } else if (body.action === 'set_participant_color') {
+    const { actorParticipantId, color } = body as { actorParticipantId: string; color: string };
+    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.participants = s.participants.map(p => p.id===actorParticipantId ? { ...p, color: String(color).slice(0, 64) } : p);
   } else {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
