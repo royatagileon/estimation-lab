@@ -236,7 +236,9 @@ export function SessionView({ id }: { id: string }) {
               return (
                 <li key={p.id} className="group relative" data-participant-id={p.id}>
                   <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
-                    (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
+                    (s.round.status==='voting' && p.voted)
+                      ? 'bg-emerald-500 text-white border-emerald-600'
+                      : (p.handRaised ? 'bg-yellow-300 text-black border-yellow-400' : '')
                   }`}
                     title={assignMode && iAmFacilitator ? 'Click to assign facilitator' : undefined}
                     onClick={async()=>{
@@ -304,7 +306,7 @@ export function SessionView({ id }: { id: string }) {
                         </>
                       )}
                       {/* celebrate/thumbs removed */}
-                      {iAmFacilitator && !isFac && (
+                      {iAmFacilitator && p.id===myPid && (
                         <button title="Assign Facilitator (then click a name)" onClick={()=>{ setAssignMode(true); const host = document.querySelector(`[data-participant-id="${p.id}"]`)?.querySelector('[data-participant-menu]') as HTMLElement | null; if (host) host.classList.add('hidden'); }}>⭐</button>
                       )}
                     </div>
@@ -554,9 +556,7 @@ export function SessionView({ id }: { id: string }) {
                               <XIcon className="h-4 w-4" />
                             </button>
                           )}
-                          <button className="h-7 w-7 grid place-items-center rounded bg-slate-200 dark:bg-neutral-800" title="Remove" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'remove_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {/* remove task button removed */}
                         </div>
                       )}
                     </div>
