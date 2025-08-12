@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, Suspense, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Star, Check, X as XIcon, Trash2, Plus, MoreVertical } from "lucide-react";
 const workTypeDescriptions: Record<string,string> = {
   'defect': 'bug fix for broken or regressed behavior',
@@ -11,7 +11,7 @@ const workTypeDescriptions: Record<string,string> = {
   'research': 'spike or feasibility or prototype',
   'testing-qa': 'tests, automation, regression runs, flaky test fixes',
 };
-import { motion, AnimatePresence } from "framer-motion";
+// framer-motion removed to avoid hydration mismatches
 import { fireConfettiOnce } from '@/lib/confetti';
 import useSWR from "swr";
 import Link from "next/link";
@@ -26,7 +26,7 @@ function slugifyTeam(team?: string) {
 
 export function SessionView({ id }: { id: string }) {
   // All hooks must run before any early returns to satisfy React rules
-  const { data: s, isLoading, mutate } = useSWR<Session>(`/api/session/${id}`, fetcher, { refreshInterval: 1000 });
+  const { data: s, isLoading, mutate } = useSWR<Session>(`/api/session/${id}`, fetcher, { refreshInterval: 1500, revalidateOnFocus: false });
   const [joining, setJoining] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -566,15 +566,14 @@ export function SessionView({ id }: { id: string }) {
 
       <main className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
         {/* blackjack UI removed */}
-        <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
+        {/* Suspense removed to simplify hydration */}
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         <div className="grid grid-cols-4 gap-3">
           {deck.map(v => {
             const selected = myPid && s.participants.some((p: any)=> p.id===myPid && String(p.vote)===String(v));
             return (
-              <motion.button
+              <button
                 key={String(v)}
-                whileTap={{ scale: 0.98 }}
                 onMouseDown={(e)=>{
                   // long press to start voting if facilitator and idle
                   if (!iAmFacilitator || s.round.status!=='idle') return;
@@ -603,7 +602,7 @@ export function SessionView({ id }: { id: string }) {
                 <span className="inline-flex items-center gap-2">
                   {String(v)}
                 </span>
-              </motion.button>
+              </button>
             );
           })}
         </div>
@@ -636,7 +635,7 @@ export function SessionView({ id }: { id: string }) {
 
         {/* Notifications (formerly Results) */}
         <div className="mt-3">
-          <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm bg-[--color-warn-bg] text-[--color-warn-fg] dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/30">
+          <div className="rounded-xl border p-3 text-sm bg-[--color-warn-bg] text-[--color-warn-fg] dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/30">
             <div className="text-xs font-medium mb-1">Notifications</div>
             {s.round.status === 'idle' && ((s.round.tasks??[]).some((t:any)=>t.status==='approved') || (s.round.tasks??[]).length===0) && (
               <div className="flex items-center gap-2">
@@ -678,7 +677,7 @@ export function SessionView({ id }: { id: string }) {
                 }}>Move to Ready</button>
               </div>
             )}
-          </motion.div>
+          </div>
         </div>
       </main>
 
