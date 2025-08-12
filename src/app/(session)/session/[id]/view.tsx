@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense, useRef } from "react";
 import { Star, Check, X as XIcon, Trash2, Plus, MoreVertical } from "lucide-react";
 const workTypeDescriptions: Record<string,string> = {
   'defect': 'bug fix for broken or regressed behavior',
@@ -353,16 +353,15 @@ export function SessionView({ id }: { id: string }) {
   }
 
   // Consume blackjack events from activity
-  const lastBjTsRef = useState(0)[0] as unknown as { current: number };
-  (lastBjTsRef as any).current = (lastBjTsRef as any).current ?? 0;
+  const lastBjTsRef = useRef<number>(0);
   useEffect(() => {
     const acts = (s?.activity ?? []).filter(a => a.startsWith?.('BJ:'));
     for (const raw of acts) {
       try {
         const obj = JSON.parse(raw.slice(3));
         const t = obj.t ?? 0;
-        if (t <= (lastBjTsRef as any).current) continue;
-        (lastBjTsRef as any).current = t;
+        if (t <= lastBjTsRef.current) continue;
+        lastBjTsRef.current = t;
         const payload = obj;
         if (payload.type === 'invite') {
           if (payload.inviteeId === myPid && !bjActive) {
