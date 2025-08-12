@@ -198,6 +198,9 @@ export function SessionView({ id }: { id: string }) {
     target: number;
     roundDone: boolean;
   }>(null);
+  // Ephemeral reactions for participants (show inline emoji for ~5s)
+  const [ephemeralReactions, setEphemeralReactions] = useState<Record<string, { kind: 'celebrate'|'thumbs'; until: number }>>({});
+  const ephemeralTimers = useRef<Map<string, number>>(new Map());
 
   function processBJUnlockClick(v: string | number) {
     if (bjActive) return;
@@ -390,7 +393,7 @@ export function SessionView({ id }: { id: string }) {
     }
   }, [s?.activity]);
 
-  // Celebration bursts
+  // Inline celebration/thumbs reactions via activity log
   const lastBurstRef = useRef<number>(0);
   useEffect(()=>{
     const acts = (s?.activity ?? []).filter(a => a.startsWith?.('B:'));
@@ -400,30 +403,25 @@ export function SessionView({ id }: { id: string }) {
       const ts = Number(parts[3]);
       if (ts <= lastBurstRef.current) continue;
       lastBurstRef.current = ts;
-      const kind = parts[1];
+      const kind = (parts[1] === 'celebrate' ? 'celebrate' : 'thumbs') as 'celebrate'|'thumbs';
       const pid = parts[2];
-      const targetEl = document.querySelector(`[data-participant-id="${pid}"]`) as HTMLElement | null;
-      if (!targetEl) continue;
-      const burst = document.createElement('div');
-      burst.textContent = kind === 'celebrate' ? '🎉' : '👍';
-      burst.setAttribute('aria-hidden','true');
-      burst.style.position = 'absolute';
-      burst.style.translate = '0 -8px';
-      burst.style.fontSize = '18px';
-      burst.style.opacity = '1';
-      const host = targetEl.closest('li');
-      if (!host) continue;
-      host.style.position = 'relative';
-      host.appendChild(burst);
-      let t = 0;
-      const id = setInterval(()=>{
-        t += 1;
-        burst.style.translate = `0 ${-8 - t*3}px`;
-        burst.style.opacity = String(Math.max(0, 1 - t/15));
-        if (t>15) { clearInterval(id); burst.remove(); }
-      }, 16);
+      const until = Date.now() + 5000;
+      setEphemeralReactions(prev => ({ ...prev, [pid]: { kind, until } }));
+      const old = ephemeralTimers.current.get(pid);
+      if (old) window.clearTimeout(old);
+      const to = window.setTimeout(()=>{
+        setEphemeralReactions(prev => {
+          const next = { ...prev };
+          if (next[pid] && next[pid]!.until <= Date.now()) delete next[pid];
+          return next;
+        });
+        ephemeralTimers.current.delete(pid);
+      }, 5200);
+      ephemeralTimers.current.set(pid, to);
     }
   }, [s?.activity]);
+
+  // (Removed older floating burst animation in favor of inline emoji with timeout)
 
   const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
 
@@ -477,6 +475,7 @@ export function SessionView({ id }: { id: string }) {
   const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
   const iCanEditWorkItem = iAmFacilitator || (s.round.editStatus === 'granted' && s.round.editorId === myPid);
+  const [assignMode, setAssignMode] = useState(false);
   async function selfJoin() {
     if (!s || joining) return;
     setJoining(true);
@@ -563,14 +562,23 @@ export function SessionView({ id }: { id: string }) {
           <ul className="space-y-2">
             {s.participants.map((p: any) => {
               const isFac = p.id===s.facilitatorId;
+              const canShowMenu = (p.id===myPid) || (iAmFacilitator && !isFac);
               return (
-                <li key={p.id} className="group" data-participant-id={p.id}>
+                <li key={p.id} className="group relative" data-participant-id={p.id}>
                   <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
                     (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
                   } ${inviteMode? 'cursor-pointer' : ''}`}
-                    title={inviteMode ? 'Click to invite to Blackjack' : undefined}
-                    onClick={()=>{ if (inviteMode && p.id !== myPid) bjInvite(p.id); }}
-                    >
+                    title={inviteMode ? 'Click to invite to Blackjack' : assignMode && iAmFacilitator ? 'Click to assign facilitator' : undefined}
+                    onClick={async()=>{
+                      if (inviteMode && p.id !== myPid) { bjInvite(p.id); return; }
+                      if (assignMode && iAmFacilitator && p.id !== s.facilitatorId) {
+                        await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) });
+                        setAssignMode(false);
+                        mutate();
+                        return;
+                      }
+                    }}
+                  >
                     {isFac ? (
                       <span className={`inline-grid h-6 w-6 place-items-center rounded-full ${p.handRaised ? 'bg-yellow-500' : 'bg-yellow-400'} text-white`} title={p.handRaised ? 'Hand raised' : 'Facilitator'}>
                         <Star className="h-3.5 w-3.5" />
@@ -590,29 +598,47 @@ export function SessionView({ id }: { id: string }) {
                       > {p.name?.[0]?.toUpperCase() || 'P'} </span>
                     )}
                     <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
-                    {(
-                      // show actions for everyone on themselves; facilitator sees for others too
-                      (p.id===myPid) || (iAmFacilitator && !isFac)
-                    ) && (
-                      <button className="opacity-60 group-hover:opacity-100 transition" title="Actions" onClick={(e)=>{
-                        const menu = (e.currentTarget.parentElement?.parentElement as HTMLElement).querySelector('[data-participant-menu]') as HTMLElement | null;
-                        if (menu) menu.classList.toggle('hidden');
-                      }}>
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                  <div data-participant-menu className="hidden ml-8 mt-1 text-xs">
-                    {/* Self and facilitator actions */}
-                    <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'raise_hand', actorParticipantId: p.id }) }); mutate(); }}>Raise hand</button>
-                    { (iAmFacilitator || p.id===myPid) && p.handRaised && (
-                      <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Lower hand</button>
-                    )}
-                    <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: p.id, kind: 'celebrate' }) }); }}>🎉 Celebrate</button>
-                    <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: p.id, kind: 'thumbs' }) }); }}>👍 Thumbs up</button>
-                    {iAmFacilitator && !isFac && (
-                      <button className="underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Assign Facilitator</button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {p.handRaised && <span title="Hand raised" aria-label="Hand raised">✋</span>}
+                      {ephemeralReactions[p.id] && (
+                        <span title={ephemeralReactions[p.id]!.kind==='celebrate' ? 'Celebrate' : 'Thumbs up'} aria-hidden>{ephemeralReactions[p.id]!.kind==='celebrate' ? '🎉' : '👍'}</span>
+                      )}
+                      {canShowMenu && (
+                        <button className="opacity-60 hover:opacity-100 transition" title="Actions" onClick={(e)=>{
+                          const host = (e.currentTarget.closest('li')) as HTMLElement | null;
+                          if (!host) return;
+                          const menu = host.querySelector('[data-participant-menu]') as HTMLElement | null;
+                          if (menu) menu.classList.toggle('hidden');
+                        }}>
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {/* Inline popover menu */}
+                    <div data-participant-menu className="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white/95 border rounded-full px-2 py-1 shadow flex items-center gap-2">
+                      {p.id===myPid && !p.handRaised && (
+                        <button title="Raise hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'raise_hand', actorParticipantId: myPid }) }); mutate(); }}>✋</button>
+                      )}
+                      {p.handRaised && (
+                        <>
+                          {iAmFacilitator && p.id!==myPid && (
+                            <button title="Lower hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>⬇️</button>
+                          )}
+                          {p.id===myPid && (
+                            <button title="Lower hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>⬇️</button>
+                          )}
+                        </>
+                      )}
+                      {p.id===myPid && (
+                        <>
+                          <button title="Celebrate" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: myPid, kind: 'celebrate' }) }); }}>🎉</button>
+                          <button title="Thumbs up" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: myPid, kind: 'thumbs' }) }); }}>👍</button>
+                        </>
+                      )}
+                      {iAmFacilitator && !isFac && (
+                        <button title="Assign Facilitator (then click a name)" onClick={()=>{ setAssignMode(true); const host = document.querySelector(`[data-participant-id="${p.id}"]`)?.querySelector('[data-participant-menu]') as HTMLElement | null; if (host) host.classList.add('hidden'); }}>⭐</button>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
