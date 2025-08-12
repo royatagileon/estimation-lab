@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, Suspense } from "react";
-import { Crown, Check, X as XIcon, Trash2, Plus } from "lucide-react";
+import { Star, Check, X as XIcon, Trash2, Plus, MoreVertical } from "lucide-react";
 const workTypeDescriptions: Record<string,string> = {
   'defect': 'bug fix for broken or regressed behavior',
   'enhancement': 'improve existing feature such as UX or performance or small additions',
@@ -163,14 +163,36 @@ export function SessionView({ id }: { id: string }) {
       <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
         <h2 className="font-semibold mb-2">Participants</h2>
         <div className="max-h-56 md:max-h-64 overflow-auto pr-1">
-          <ul className="text-sm space-y-1">
+          <ul className="space-y-2">
             {s.participants.map((p: any) => {
-              const votedClass = p.voted ? 'text-emerald-700 dark:text-emerald-300' : '';
+              const isFac = p.id===s.facilitatorId;
               return (
-                <li key={p.id} className={`${p.id===s.facilitatorId? 'font-semibold' : ''} ${votedClass}`}>
-                  {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''} {p.id===s.facilitatorId && <span aria-label="Facilitator" title="Facilitator">👑</span>}
-                  {iAmFacilitator && p.id !== s.facilitatorId && (
-                    <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
+                <li key={p.id} className="group">
+                  <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${p.voted? 'border-emerald-300/60': ''}`} onClick={async (e)=>{
+                    if (!iAmFacilitator || isFac) return;
+                    const el = (e.currentTarget as HTMLElement).querySelector('[data-participant-menu]') as HTMLElement | null;
+                    if (el) el.classList.toggle('hidden');
+                  }}>
+                    {isFac ? (
+                      <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-yellow-400 text-white" title="Facilitator">
+                        <Star className="h-3.5 w-3.5" />
+                      </span>
+                    ) : (
+                      <span className="inline-grid h-6 w-6 place-items-center rounded-full border text-xs" aria-hidden> {p.name?.[0]?.toUpperCase() || 'P'} </span>
+                    )}
+                    <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
+                    {iAmFacilitator && !isFac && (
+                      <button className="opacity-60 group-hover:opacity-100 transition" title="Actions">
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  {iAmFacilitator && !isFac && (
+                    <div data-participant-menu className="hidden ml-8 mt-1 text-xs">
+                      <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Make facilitator</button>
+                      <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'nudge_participant', toParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Nudge</button>
+                      <button className="underline text-red-600" onClick={async()=>{ if (!confirm(`Remove ${p.name || 'participant'}?`)) return; await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'remove_participant', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Remove</button>
+                    </div>
                   )}
                 </li>
               );
@@ -179,9 +201,11 @@ export function SessionView({ id }: { id: string }) {
         </div>
         <div className="text-xs text-gray-500">Code: {s.code}</div>
         {notJoined && (
-          <div className="mt-3 space-y-2">
-            <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
-            <button disabled={joining} className="w-full border rounded px-3 py-2 disabled:opacity-50" onClick={selfJoin}>{joining ? 'Joining…' : 'Join Session'}</button>
+          <div className="mt-3">
+            <div className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11">
+              <input className="flex-1 bg-transparent outline-none placeholder:italic placeholder:text-slate-400" placeholder="Enter your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
+              <button disabled={joining || !displayName.trim()} className="rounded-full bg-emerald-500 text-white px-4 py-1.5 text-sm disabled:opacity-60" onClick={selfJoin}>{joining ? 'Joining…' : 'Join'}</button>
+            </div>
           </div>
         )}
         <div className="mt-5">

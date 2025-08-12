@@ -62,6 +62,19 @@ export async function POST(req: Request, ctx: any) {
     s.round.editStatus = 'idle';
     s.round.editorId = undefined;
     s.round.editRequestedBy = undefined;
+  } else if (body.action === 'nudge_participant') {
+    const { toParticipantId, actorParticipantId } = body as { toParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (!s.participants.some(p=>p.id===toParticipantId)) return NextResponse.json({ error: 'participant' }, { status: 400 });
+    s.activity = [
+      `Nudge:${toParticipantId}:${Date.now()}`,
+      ...((s.activity ?? []).slice(0, 99))
+    ];
+  } else if (body.action === 'remove_participant') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (s.facilitatorId === targetParticipantId) return NextResponse.json({ error: 'cannot_remove_facilitator' }, { status: 400 });
+    s.participants = s.participants.filter(p=>p.id !== targetParticipantId);
   } else {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
