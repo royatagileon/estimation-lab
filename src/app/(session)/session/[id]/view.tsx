@@ -29,7 +29,9 @@ export function SessionView({ id }: { id: string }) {
   const { data: s, isLoading, mutate } = useSWR<Session>(`/api/session/${id}`, fetcher, { refreshInterval: 1000 });
   const [joining, setJoining] = useState(false);
   const [displayName, setDisplayName] = useState('');
-  const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const notJoined = mounted ? !localStorage.getItem('pid:' + (s?.id ?? '')) : false;
   // Inline editor state (facilitator only)
   const [showEditor, setShowEditor] = useState(false);
   const [workType, setWorkType] = useState<
@@ -139,7 +141,7 @@ export function SessionView({ id }: { id: string }) {
   const slugKey = slugifyTeam(s.teamName) ? `${slugifyTeam(s.teamName)}-${s.code}` : s.code;
   const shareLink = `/s/${slugKey}`;
 
-  const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
+  const myPid = mounted ? (localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined) : undefined;
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
   const iCanEditWorkItem = iAmFacilitator || (s.round.editStatus === 'granted' && s.round.editorId === myPid);
   const [assignMode, setAssignMode] = useState(false);
@@ -309,7 +311,7 @@ export function SessionView({ id }: { id: string }) {
                 </li>
               );
             })}
-          </ul>
+        </ul>
           {/* Rejoin Requests */}
           {Boolean((s as any).rejoinRequests?.length) && (
             <div className="mt-3 space-y-2">
