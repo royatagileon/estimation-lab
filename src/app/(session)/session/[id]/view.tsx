@@ -530,7 +530,9 @@ export function SessionView({ id }: { id: string }) {
               const isFac = p.id===s.facilitatorId;
               return (
                 <li key={p.id} className="group">
-                  <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${p.voted? 'border-emerald-300/60': ''} ${inviteMode? 'cursor-pointer' : ''}`}
+                  <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
+                    (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
+                  } ${inviteMode? 'cursor-pointer' : ''}`}
                     title={inviteMode ? 'Click to invite to Blackjack' : undefined}
                     onClick={()=>{ if (inviteMode && p.id !== myPid) bjInvite(p.id); }}
                     >
@@ -811,6 +813,13 @@ export function SessionView({ id }: { id: string }) {
       </aside>
 
       <main className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
+        {pendingInvite && myPid === pendingInvite.inviteeId && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border bg-white/90 px-4 py-2 text-sm shadow" role="status" aria-live="polite">
+            <span className="mr-3">Blackjack invite from {s.participants.find((p:any)=>p.id===pendingInvite.inviterId)?.name || 'Player'}</span>
+            <button className="rounded bg-emerald-500 text-white px-2 py-1 mr-2" onClick={()=>{ bjAccept(pendingInvite.inviterId, pendingInvite.inviteeId); }}>Join</button>
+            <button className="rounded border px-2 py-1" onClick={()=>{ setPendingInvite(null); }}>Dismiss</button>
+          </div>
+        )}
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         <div className="grid grid-cols-4 gap-3">
