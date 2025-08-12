@@ -130,6 +130,7 @@ export function SessionView({ id }: { id: string }) {
 
   //
 
+  if (!mounted) return <div>Loading session…</div>;
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
 
