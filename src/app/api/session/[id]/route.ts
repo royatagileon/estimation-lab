@@ -74,12 +74,8 @@ export async function POST(req: Request, ctx: any) {
     if (targetParticipantId && s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     s.participants = s.participants.map(p => p.id===target ? { ...p, handRaised: false } : p);
   } else if (body.action === 'burst') {
-    const { actorParticipantId, kind } = body as { actorParticipantId: string; kind: 'celebrate'|'thumbs' };
-    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    s.activity = [
-      `B:${kind}:${actorParticipantId}:${Date.now()}`,
-      ...((s.activity ?? []).slice(0, 99))
-    ];
+    // Reactions removed: no-op
+    return NextResponse.json({ ok: true });
   } else if (body.action === 'request_rejoin') {
     const { participantId, name } = body as { participantId: string; name?: string };
     const now = Date.now();

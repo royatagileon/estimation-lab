@@ -183,9 +183,7 @@ export function SessionView({ id }: { id: string }) {
 
   // Blackjack removed
   const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
-  // Ephemeral reactions for participants (show inline emoji for ~5s)
-  const [ephemeralReactions, setEphemeralReactions] = useState<Record<string, { kind: 'celebrate'|'thumbs'; until: number }>>({});
-  const ephemeralTimers = useRef<Map<string, number>>(new Map());
+  // Reactions removed
 
   //
 
@@ -197,33 +195,7 @@ export function SessionView({ id }: { id: string }) {
   // Consume blackjack events from activity
   // Removed blackjack event handling
 
-  // Inline celebration/thumbs reactions via activity log
-  const lastBurstRef = useRef<number>(0);
-  useEffect(()=>{
-    const acts = (s?.activity ?? []).filter(a => a.startsWith?.('B:'));
-    for (const raw of acts) {
-      const parts = raw.split(':'); // B:kind:pid:ts
-      if (parts.length < 4) continue;
-      const ts = Number(parts[3]);
-      if (ts <= lastBurstRef.current) continue;
-      lastBurstRef.current = ts;
-      const kind = (parts[1] === 'celebrate' ? 'celebrate' : 'thumbs') as 'celebrate'|'thumbs';
-      const pid = parts[2];
-      const until = Date.now() + 5000;
-      setEphemeralReactions(prev => ({ ...prev, [pid]: { kind, until } }));
-      const old = ephemeralTimers.current.get(pid);
-      if (old) window.clearTimeout(old);
-      const to = window.setTimeout(()=>{
-        setEphemeralReactions(prev => {
-          const next = { ...prev };
-          if (next[pid] && next[pid]!.until <= Date.now()) delete next[pid];
-          return next;
-        });
-        ephemeralTimers.current.delete(pid);
-      }, 5200);
-      ephemeralTimers.current.set(pid, to);
-    }
-  }, [s?.activity]);
+  //
 
   // (Removed older floating burst animation in favor of inline emoji with timeout)
 
@@ -402,9 +374,7 @@ export function SessionView({ id }: { id: string }) {
                     <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
                     <div className="flex items-center gap-2">
                       {p.handRaised && <span title="Hand raised" aria-label="Hand raised">✋</span>}
-                      {ephemeralReactions[p.id] && (
-                        <span title={ephemeralReactions[p.id]!.kind==='celebrate' ? 'Celebrate' : 'Thumbs up'} aria-hidden>{ephemeralReactions[p.id]!.kind==='celebrate' ? '🎉' : '👍'}</span>
-                      )}
+                      {/* reactions removed */}
                       {canShowMenu && (
                         <div
                           className="opacity-60 hover:opacity-100 transition cursor-pointer"
@@ -438,12 +408,7 @@ export function SessionView({ id }: { id: string }) {
                           )}
                         </>
                       )}
-                      {p.id===myPid && (
-                        <>
-                          <button title="Celebrate" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: myPid, kind: 'celebrate' }) }); }}>🎉</button>
-                          <button title="Thumbs up" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: myPid, kind: 'thumbs' }) }); }}>👍</button>
-                        </>
-                      )}
+                      {/* celebrate/thumbs removed */}
                       {iAmFacilitator && !isFac && (
                         <button title="Assign Facilitator (then click a name)" onClick={()=>{ setAssignMode(true); const host = document.querySelector(`[data-participant-id="${p.id}"]`)?.querySelector('[data-participant-menu]') as HTMLElement | null; if (host) host.classList.add('hidden'); }}>⭐</button>
                       )}
