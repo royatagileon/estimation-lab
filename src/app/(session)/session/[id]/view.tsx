@@ -1,6 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { Crown, Check, X as XIcon, Trash2, Plus } from "lucide-react";
+const workTypeDescriptions: Record<string,string> = {
+  'defect': 'bug fix for broken or regressed behavior',
+  'enhancement': 'improve existing feature such as UX or performance or small additions',
+  'new-request': 'net new capability not currently supported',
+  'ktlo': 'maintenance and operations such as upgrades, patches, monitoring, deprecations',
+  'compliance': 'regulatory or security work such as audits, policies, data retention, access controls',
+  'kaizen': 'continuous improvement such as refactors, technical debt, developer experience improvements',
+  'research': 'spike or feasibility or prototype',
+  'testing-qa': 'tests, automation, regression runs, flaky test fixes',
+};
 import { motion, AnimatePresence } from "framer-motion";
 import { fireConfettiOnce } from '@/lib/confetti';
 import useSWR from "swr";
@@ -22,6 +32,9 @@ export function SessionView({ id }: { id: string }) {
   const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
   // Inline editor state (facilitator only)
   const [showEditor, setShowEditor] = useState(false);
+  const [workType, setWorkType] = useState<
+    'defect'|'enhancement'|'new-request'|'ktlo'|'compliance'|'kaizen'|'research'|'testing-qa'|''
+  >('');
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [criteria, setCriteria] = useState<string[]>([]);
@@ -117,6 +130,7 @@ export function SessionView({ id }: { id: string }) {
   function openEditor() {
     const canEdit = iAmFacilitator || (s?.round.editStatus === 'granted' && s?.round.editorId === myPid);
     if (!canEdit) return;
+    setWorkType((s?.round.workType as any) || '');
     setEditTitle(s?.round.itemTitle || '');
     setEditDesc(s?.round.itemDescription || '');
     setCriteria((s?.round.acceptanceCriteria || '').split('\n').filter(Boolean));
@@ -133,8 +147,8 @@ export function SessionView({ id }: { id: string }) {
     // If an item already exists, update it; otherwise start a new round
     const isUpdate = Boolean(s?.round.itemTitle);
     const payload = isUpdate
-      ? { action:'update', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, by: myPid }
-      : { action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid };
+      ? { action:'update', workType: workType || undefined, itemTitle:title, itemDescription:description, acceptanceCriteria: ac, by: myPid }
+      : { action:'start', workType: workType || undefined, itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid };
     await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     setShowEditor(false);
     mutate();
@@ -201,6 +215,28 @@ export function SessionView({ id }: { id: string }) {
               )}
               {showEditor && (
                 <div className="space-y-3">
+                  <div>
+                    <label htmlFor="work-type" className="block text-sm font-medium mb-1">Work Type</label>
+                    <select
+                      id="work-type"
+                      className="w-full rounded-xl border px-3 py-2 focus-ring"
+                      aria-describedby="work-type-help"
+                      value={workType}
+                      onChange={(e)=> setWorkType(e.target.value as any)}
+                      title={workType ? workTypeDescriptions[workType] : 'Select work type'}
+                    >
+                      <option value="" disabled>Select work type</option>
+                      <option value="defect">Defect</option>
+                      <option value="enhancement">Enhancement</option>
+                      <option value="new-request">New Request</option>
+                      <option value="ktlo">KTLO</option>
+                      <option value="compliance">Compliance</option>
+                      <option value="kaizen">Kaizen</option>
+                      <option value="research">Research</option>
+                      <option value="testing-qa">Testing/QA</option>
+                    </select>
+                    <p id="work-type-help" className="text-xs text-slate-500 mt-1">{workType ? workTypeDescriptions[workType] : 'Choose the most appropriate type for this work item.'}</p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Title</label>
                     <input

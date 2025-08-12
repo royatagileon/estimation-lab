@@ -9,6 +9,7 @@ export type Participant = {
 
 export type Round = {
   status: "idle"|"voting"|"revealed";
+  workType?: 'defect'|'enhancement'|'new-request'|'ktlo'|'compliance'|'kaizen'|'research'|'testing-qa';
   itemTitle?: string;
   itemDescription?: string;
   acceptanceCriteria?: string;
@@ -52,6 +53,7 @@ export type Session = {
   facilitatorId?: string;
   facilitatorToken?: string;
   finalizedItems?: Array<{
+    workType?: 'defect'|'enhancement'|'new-request'|'ktlo'|'compliance'|'kaizen'|'research'|'testing-qa';
     title: string;
     description?: string;
     acceptanceCriteria?: string;

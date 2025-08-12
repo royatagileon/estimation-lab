@@ -18,6 +18,7 @@ export async function POST(req: NextRequest, ctx: any) {
     }
     s.round = {
       status: "idle",
+      workType: body.workType as any,
       itemTitle: String(body.itemTitle || "").slice(0, 200),
       itemDescription: String(body.itemDescription || "").slice(0, 5000),
       acceptanceCriteria: String(body.acceptanceCriteria || "").slice(0, 5000),
@@ -90,13 +91,14 @@ export async function POST(req: NextRequest, ctx: any) {
   }
 
   if (body.action === 'update') {
-    const { itemTitle, itemDescription, acceptanceCriteria, by } = body as { itemTitle?: string; itemDescription?: string; acceptanceCriteria?: string; by?: string };
+    const { workType, itemTitle, itemDescription, acceptanceCriteria, by } = body as { workType?: string; itemTitle?: string; itemDescription?: string; acceptanceCriteria?: string; by?: string };
     // Allow facilitator or granted editor to update
     const isFac = !!s.facilitatorId && s.facilitatorId === by;
     const isGranted = s.round.editorId && s.round.editorId === by && s.round.editStatus === 'granted';
     if (!isFac && !isGranted) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+    if (typeof workType === 'string') s.round.workType = workType as any;
     if (typeof itemTitle === 'string') s.round.itemTitle = String(itemTitle).slice(0, 200);
     if (typeof itemDescription === 'string') s.round.itemDescription = String(itemDescription).slice(0, 5000);
     if (typeof acceptanceCriteria === 'string') s.round.acceptanceCriteria = String(acceptanceCriteria).slice(0, 5000);
@@ -114,6 +116,7 @@ export async function POST(req: NextRequest, ctx: any) {
     const roundTasks = (s.round.tasks ?? []);
     const approvedTasks = roundTasks.filter((t:any)=> t.status === 'approved').map((t:any)=>({ id: t.id, text: t.text, status: t.status }));
     s.finalizedItems.push({
+      workType: s.round.workType,
       title: (s.round.itemTitle && s.round.itemTitle.trim().length>0) ? s.round.itemTitle : 'Unrefined item',
       description: s.round.itemDescription,
       acceptanceCriteria: s.round.acceptanceCriteria,
