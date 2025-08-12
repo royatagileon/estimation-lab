@@ -198,6 +198,7 @@ export function SessionView({ id }: { id: string }) {
     target: number;
     roundDone: boolean;
   }>(null);
+  const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
   // Ephemeral reactions for participants (show inline emoji for ~5s)
   const [ephemeralReactions, setEphemeralReactions] = useState<Record<string, { kind: 'celebrate'|'thumbs'; until: number }>>({});
   const ephemeralTimers = useRef<Map<string, number>>(new Map());
@@ -423,7 +424,6 @@ export function SessionView({ id }: { id: string }) {
 
   // (Removed older floating burst animation in favor of inline emoji with timeout)
 
-  const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
 
   async function handleTileClickGame(idx: number) {
     if (!secretActive || !symbols) return;
