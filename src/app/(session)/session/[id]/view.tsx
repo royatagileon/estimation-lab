@@ -536,7 +536,7 @@ export function SessionView({ id }: { id: string }) {
             {iAmFacilitator && s.round.status==='voting' && (
               <div className="flex items-center gap-2">
                 <span>If you would like to refine the work item more…</span>
-                <button className="rounded px-2 py-1 text-xs border" onClick={async()=>{
+                <button className="rounded px-2 py-1 text-xs bg-red-500 text-white" onClick={async()=>{
                   await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'end_voting', actorParticipantId: myPid }) });
                   mutate();
                 }}>Stop Poker</button>
