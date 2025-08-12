@@ -236,9 +236,7 @@ export function SessionView({ id }: { id: string }) {
               return (
                 <li key={p.id} className="group relative" data-participant-id={p.id}>
                   <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
-                    (s.round.status==='voting' && p.voted)
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : (p.handRaised ? 'bg-yellow-300 text-black border-yellow-400' : '')
+                    (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
                   }`}
                     title={assignMode && iAmFacilitator ? 'Click to assign facilitator' : undefined}
                     onClick={async()=>{
@@ -251,7 +249,7 @@ export function SessionView({ id }: { id: string }) {
                     }}
                   >
                     {isFac ? (
-                      <span className={`inline-grid h-6 w-6 place-items-center rounded-full ${p.handRaised ? 'bg-yellow-500' : 'bg-yellow-400'} text-white`} title={p.handRaised ? 'Hand raised' : 'Facilitator'}>
+                      <span className={`inline-grid h-6 w-6 place-items-center rounded-full bg-yellow-400 text-white`} title={'Facilitator'}>
                         <Star className="h-3.5 w-3.5" />
                       </span>
                     ) : (
@@ -270,7 +268,7 @@ export function SessionView({ id }: { id: string }) {
                     )}
                     <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
                     <div className="flex items-center gap-2">
-                      {p.handRaised && <span title="Hand raised" aria-label="Hand raised">✋</span>}
+                      {/* hand raise removed */}
                       {/* reactions removed */}
                       {canShowMenu && (
                         <div
@@ -292,19 +290,6 @@ export function SessionView({ id }: { id: string }) {
                     </div>
                     {/* Inline popover menu */}
                     <div data-participant-menu className="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white/95 border rounded-full px-2 py-1 shadow flex items-center gap-2">
-                      {p.id===myPid && !p.handRaised && (
-                        <button title="Raise hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'raise_hand', actorParticipantId: myPid }) }); mutate(); }}>✋</button>
-                      )}
-                      {p.handRaised && (
-                        <>
-                          {iAmFacilitator && p.id!==myPid && (
-                            <button title="Lower hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>⬇️</button>
-                          )}
-                          {p.id===myPid && (
-                            <button title="Lower hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>⬇️</button>
-                          )}
-                        </>
-                      )}
                       {/* celebrate/thumbs removed */}
                       {iAmFacilitator && p.id===myPid && (
                         <button title="Assign Facilitator (then click a name)" onClick={()=>{ setAssignMode(true); const host = document.querySelector(`[data-participant-id="${p.id}"]`)?.querySelector('[data-participant-menu]') as HTMLElement | null; if (host) host.classList.add('hidden'); }}>⭐</button>

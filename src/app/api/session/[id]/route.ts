@@ -63,16 +63,11 @@ export async function POST(req: Request, ctx: any) {
     s.round.editorId = undefined;
     s.round.editRequestedBy = undefined;
   } else if (body.action === 'raise_hand') {
-    const { actorParticipantId } = body as { actorParticipantId: string };
-    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    s.participants = s.participants.map(p => p.id===actorParticipantId ? { ...p, handRaised: true } : p);
+    // Hand raise feature removed
+    return NextResponse.json({ ok: true });
   } else if (body.action === 'lower_hand') {
-    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId?: string; actorParticipantId: string };
-    const target = targetParticipantId || actorParticipantId;
-    if (!target) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    // Allow facilitator to lower anyone's hand; others only themselves
-    if (targetParticipantId && s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    s.participants = s.participants.map(p => p.id===target ? { ...p, handRaised: false } : p);
+    // Hand raise feature removed
+    return NextResponse.json({ ok: true });
   } else if (body.action === 'burst') {
     // Reactions removed: no-op
     return NextResponse.json({ ok: true });
