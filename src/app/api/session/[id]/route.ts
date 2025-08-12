@@ -97,10 +97,16 @@ export async function POST(req: Request, ctx: any) {
   } else if (body.action === 'approve_rejoin') {
     const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    (s as any).rejoinRequests = ((s as any).rejoinRequests ?? []).filter((r:any)=>r.id!==targetParticipantId);
+    const reqs = ((s as any).rejoinRequests ?? []) as any[];
+    const req = reqs.find(r=>r.id===targetParticipantId);
+    (s as any).rejoinRequests = reqs.filter((r:any)=>r.id!==targetParticipantId);
     (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=>r.id!==targetParticipantId);
-    // Re-add participant with fresh state (name will be set by client on next heartbeat/join flow)
-    s.participants.push({ id: targetParticipantId, name: 'Guest', voted: false });
+    // Re-add participant with requested name
+    s.participants.push({ id: targetParticipantId, name: (req?.name || 'Guest'), voted: false });
+  } else if (body.action === 'decline_rejoin') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    (s as any).rejoinRequests = ((s as any).rejoinRequests ?? []).filter((r:any)=>r.id!==targetParticipantId);
   } else if (body.action === 'set_participant_color') {
     const { actorParticipantId, color } = body as { actorParticipantId: string; color: string };
     if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
