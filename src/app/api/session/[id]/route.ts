@@ -62,29 +62,24 @@ export async function POST(req: Request, ctx: any) {
     s.round.editStatus = 'idle';
     s.round.editorId = undefined;
     s.round.editRequestedBy = undefined;
-  } else if (body.action === 'nudge_participant') {
-    const { toParticipantId, actorParticipantId } = body as { toParticipantId: string; actorParticipantId: string };
-    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    if (!s.participants.some(p=>p.id===toParticipantId)) return NextResponse.json({ error: 'participant' }, { status: 400 });
+  } else if (body.action === 'raise_hand') {
+    const { actorParticipantId } = body as { actorParticipantId: string };
+    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.participants = s.participants.map(p => p.id===actorParticipantId ? { ...p, handRaised: true } : p);
+  } else if (body.action === 'lower_hand') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId?: string; actorParticipantId: string };
+    const target = targetParticipantId || actorParticipantId;
+    if (!target) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    // Allow facilitator to lower anyone's hand; others only themselves
+    if (targetParticipantId && s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.participants = s.participants.map(p => p.id===target ? { ...p, handRaised: false } : p);
+  } else if (body.action === 'burst') {
+    const { actorParticipantId, kind } = body as { actorParticipantId: string; kind: 'celebrate'|'thumbs' };
+    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     s.activity = [
-      `Nudge:${toParticipantId}:${Date.now()}`,
+      `B:${kind}:${actorParticipantId}:${Date.now()}`,
       ...((s.activity ?? []).slice(0, 99))
     ];
-  } else if (body.action === 'remove_participant') {
-    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
-    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    if (s.facilitatorId === targetParticipantId) return NextResponse.json({ error: 'cannot_remove_facilitator' }, { status: 400 });
-    const removed = s.participants.find(p=>p.id===targetParticipantId);
-    s.participants = s.participants.filter(p=>p.id !== targetParticipantId);
-    // Track removed identity for 24h; no request is created until user explicitly requests
-    const now = Date.now();
-    (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=> now - (r.removedAt||0) < 24*60*60*1000);
-    const exists = ((s as any).removedList as any[]).some((r:any)=> r.id===targetParticipantId);
-    if (!exists) {
-      ((s as any).removedList as any[]).push({ id: targetParticipantId, name: removed?.name || 'Guest', removedAt: now });
-    }
-    // Clear any stale request from this id
-    (s as any).rejoinRequests = ((s as any).rejoinRequests ?? []).filter((r:any)=> r.id !== targetParticipantId);
   } else if (body.action === 'request_rejoin') {
     const { participantId, name } = body as { participantId: string; name?: string };
     const now = Date.now();

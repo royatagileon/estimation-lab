@@ -390,6 +390,41 @@ export function SessionView({ id }: { id: string }) {
     }
   }, [s?.activity]);
 
+  // Celebration bursts
+  const lastBurstRef = useRef<number>(0);
+  useEffect(()=>{
+    const acts = (s?.activity ?? []).filter(a => a.startsWith?.('B:'));
+    for (const raw of acts) {
+      const parts = raw.split(':'); // B:kind:pid:ts
+      if (parts.length < 4) continue;
+      const ts = Number(parts[3]);
+      if (ts <= lastBurstRef.current) continue;
+      lastBurstRef.current = ts;
+      const kind = parts[1];
+      const pid = parts[2];
+      const targetEl = document.querySelector(`[data-participant-id="${pid}"]`) as HTMLElement | null;
+      if (!targetEl) continue;
+      const burst = document.createElement('div');
+      burst.textContent = kind === 'celebrate' ? '🎉' : '👍';
+      burst.setAttribute('aria-hidden','true');
+      burst.style.position = 'absolute';
+      burst.style.translate = '0 -8px';
+      burst.style.fontSize = '18px';
+      burst.style.opacity = '1';
+      const host = targetEl.closest('li');
+      if (!host) continue;
+      host.style.position = 'relative';
+      host.appendChild(burst);
+      let t = 0;
+      const id = setInterval(()=>{
+        t += 1;
+        burst.style.translate = `0 ${-8 - t*3}px`;
+        burst.style.opacity = String(Math.max(0, 1 - t/15));
+        if (t>15) { clearInterval(id); burst.remove(); }
+      }, 16);
+    }
+  }, [s?.activity]);
+
   const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
 
   async function handleTileClickGame(idx: number) {
@@ -529,7 +564,7 @@ export function SessionView({ id }: { id: string }) {
             {s.participants.map((p: any) => {
               const isFac = p.id===s.facilitatorId;
               return (
-                <li key={p.id} className="group">
+                <li key={p.id} className="group" data-participant-id={p.id}>
                   <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
                     (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
                   } ${inviteMode? 'cursor-pointer' : ''}`}
@@ -537,7 +572,7 @@ export function SessionView({ id }: { id: string }) {
                     onClick={()=>{ if (inviteMode && p.id !== myPid) bjInvite(p.id); }}
                     >
                     {isFac ? (
-                      <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-yellow-400 text-white" title="Facilitator">
+                      <span className={`inline-grid h-6 w-6 place-items-center rounded-full ${p.handRaised ? 'bg-yellow-500' : 'bg-yellow-400'} text-white`} title={p.handRaised ? 'Hand raised' : 'Facilitator'}>
                         <Star className="h-3.5 w-3.5" />
                       </span>
                     ) : (
@@ -555,7 +590,10 @@ export function SessionView({ id }: { id: string }) {
                       > {p.name?.[0]?.toUpperCase() || 'P'} </span>
                     )}
                     <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
-                    {iAmFacilitator && !isFac && (
+                    {(
+                      // show actions for everyone on themselves; facilitator sees for others too
+                      (p.id===myPid) || (iAmFacilitator && !isFac)
+                    ) && (
                       <button className="opacity-60 group-hover:opacity-100 transition" title="Actions" onClick={(e)=>{
                         const menu = (e.currentTarget.parentElement?.parentElement as HTMLElement).querySelector('[data-participant-menu]') as HTMLElement | null;
                         if (menu) menu.classList.toggle('hidden');
@@ -564,13 +602,18 @@ export function SessionView({ id }: { id: string }) {
                       </button>
                     )}
                   </div>
-                  {iAmFacilitator && !isFac && (
-                    <div data-participant-menu className="hidden ml-8 mt-1 text-xs">
-                      <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Make facilitator</button>
-                      <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'nudge_participant', toParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Nudge</button>
-                      <button className="underline text-red-600" onClick={async()=>{ if (!confirm(`Remove ${p.name || 'participant'}?`)) return; await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'remove_participant', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Remove</button>
-                    </div>
-                  )}
+                  <div data-participant-menu className="hidden ml-8 mt-1 text-xs">
+                    {/* Self and facilitator actions */}
+                    <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'raise_hand', actorParticipantId: p.id }) }); mutate(); }}>Raise hand</button>
+                    { (iAmFacilitator || p.id===myPid) && p.handRaised && (
+                      <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Lower hand</button>
+                    )}
+                    <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: p.id, kind: 'celebrate' }) }); }}>🎉 Celebrate</button>
+                    <button className="underline mr-3" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: p.id, kind: 'thumbs' }) }); }}>👍 Thumbs up</button>
+                    {iAmFacilitator && !isFac && (
+                      <button className="underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>Assign Facilitator</button>
+                    )}
+                  </div>
                 </li>
               );
             })}
