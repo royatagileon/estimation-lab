@@ -14,13 +14,10 @@ export function GlobalHeader() {
       <div className="mx-auto max-w-7xl px-4 h-12 flex items-center justify-between">
         <Link href="/" className="font-semibold tracking-tight">Estimation Lab</Link>
         <div className="flex items-center gap-2">
-          {isSession && (
-            <>
-              <button className="rounded-full border px-3 py-1.5 text-sm inline-flex items-center gap-2" onClick={async()=>{ try { await navigator.clipboard?.writeText(url); } catch{} }}><Copy className="h-4 w-4"/> Copy link</button>
-              {canShare && <button className="rounded-full border px-3 py-1.5 text-sm inline-flex items-center gap-2" onClick={()=>navigator.share?.({ url })}><Share2 className="h-4 w-4"/> Share</button>}
-            </>
+          {isSession && canShare && (
+            <button className="rounded-full border px-3 py-1.5 text-sm inline-flex items-center gap-2" onClick={()=>navigator.share?.({ url })}><Share2 className="h-4 w-4"/> Share</button>
           )}
-          <ThemeSwitcher showLabel={false} />
+          {/* Removed theme switcher per request */}
         </div>
       </div>
     </header>

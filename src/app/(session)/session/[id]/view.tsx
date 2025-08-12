@@ -228,7 +228,7 @@ export function SessionView({ id }: { id: string }) {
             })}
           </ul>
         </div>
-        <div className="text-xs text-gray-500">Code: {s.code}</div>
+        {/* Session code intentionally hidden per request */}
         {notJoined && (
           <div className="mt-3">
             <div className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11">
@@ -524,12 +524,12 @@ export function SessionView({ id }: { id: string }) {
             <div className="text-xs font-medium mb-1">Notifications</div>
             {s.round.status === 'idle' && ((s.round.tasks??[]).some((t:any)=>t.status==='approved') || (s.round.tasks??[]).length===0) && (
               <div className="flex items-center gap-2">
-                <span>Awaiting facilitator to begin the poker round…</span>
+                <span>Awaiting facilitator to start the poker round…</span>
                 {iAmFacilitator && (
                   <button className="rounded px-2 py-1 text-xs bg-emerald-500 text-white" onClick={async()=>{
                     await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
                     mutate();
-                  }}>Begin</button>
+                  }}>Play Poker</button>
                 )}
               </div>
             )}
@@ -539,7 +539,7 @@ export function SessionView({ id }: { id: string }) {
                 <button className="rounded px-2 py-1 text-xs border" onClick={async()=>{
                   await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'end_voting', actorParticipantId: myPid }) });
                   mutate();
-                }}>End poker</button>
+                }}>Stop Poker</button>
               </div>
             )}
             {s.round.status === 'revealed' && s.round.results?.allVoted && (
