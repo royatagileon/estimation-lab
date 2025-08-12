@@ -63,17 +63,20 @@ export function SessionView({ id }: { id: string }) {
 
   function getContrastingText(bg: string | undefined): string | undefined {
     if (!bg) return undefined;
-    try {
-      const ctx = document.createElement('canvas').getContext('2d');
-      if (!ctx) return undefined;
-      ctx.fillStyle = bg;
-      const rgb = ctx.fillStyle as string; // normalized color
-      const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-      if (!m) return undefined;
-      const r = parseInt(m[1],10), g=parseInt(m[2],10), b=parseInt(m[3],10);
+    // Handle hsl(h, s%, l%) quickly
+    const hsl = bg.match(/hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)/i);
+    if (hsl) {
+      const l = parseInt(hsl[3], 10) / 100;
+      return l > 0.6 ? '#111' : '#fff';
+    }
+    const rgb = bg.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (rgb) {
+      const r = parseInt(rgb[1],10), g=parseInt(rgb[2],10), b=parseInt(rgb[3],10);
       const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
       return luminance > 0.6 ? '#111' : '#fff';
-    } catch { return undefined; }
+    }
+    // Default to white text
+    return '#fff';
   }
 
   function randomColor() {
@@ -604,14 +607,21 @@ export function SessionView({ id }: { id: string }) {
                         <span title={ephemeralReactions[p.id]!.kind==='celebrate' ? 'Celebrate' : 'Thumbs up'} aria-hidden>{ephemeralReactions[p.id]!.kind==='celebrate' ? '🎉' : '👍'}</span>
                       )}
                       {canShowMenu && (
-                        <button className="opacity-60 hover:opacity-100 transition" title="Actions" onClick={(e)=>{
-                          const host = (e.currentTarget.closest('li')) as HTMLElement | null;
-                          if (!host) return;
-                          const menu = host.querySelector('[data-participant-menu]') as HTMLElement | null;
-                          if (menu) menu.classList.toggle('hidden');
-                        }}>
+                        <div
+                          className="opacity-60 hover:opacity-100 transition cursor-pointer"
+                          role="button"
+                          aria-label="Participant actions"
+                          tabIndex={0}
+                          onClick={(e)=>{
+                            const host = (e.currentTarget.closest('li')) as HTMLElement | null;
+                            if (!host) return;
+                            const menu = host.querySelector('[data-participant-menu]') as HTMLElement | null;
+                            if (menu) menu.classList.toggle('hidden');
+                          }}
+                          onKeyDown={(e)=>{ if (e.key==='Enter' || e.key===' ') (e.currentTarget as HTMLElement).click(); }}
+                        >
                           <MoreVertical className="h-4 w-4" />
-                        </button>
+                        </div>
                       )}
                     </div>
                     {/* Inline popover menu */}
