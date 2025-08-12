@@ -182,7 +182,6 @@ export function SessionView({ id }: { id: string }) {
   }
 
   // Blackjack removed
-  const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
   // Reactions removed
 
   //
