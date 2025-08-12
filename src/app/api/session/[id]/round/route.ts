@@ -18,6 +18,7 @@ export async function POST(req: NextRequest, ctx: any) {
     }
     s.round = {
       status: "idle",
+      workType: body.workType as any,
       itemTitle: String(body.itemTitle || "").slice(0, 200),
       itemDescription: String(body.itemDescription || "").slice(0, 5000),
       acceptanceCriteria: String(body.acceptanceCriteria || "").slice(0, 5000),
@@ -40,6 +41,14 @@ export async function POST(req: NextRequest, ctx: any) {
       return NextResponse.json({ error: 'tasks_required' }, { status: 400 });
     }
     s.round.status = 'voting';
+    s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
+  } else if (body.action === 'end_voting') {
+    if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    // return to idle to allow editing
+    s.round.status = 'idle';
+    s.round.results = undefined;
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   } else if (body.action === "reveal") {
     if (!body.actorParticipantId || s.facilitatorId !== body.actorParticipantId) {
@@ -82,13 +91,14 @@ export async function POST(req: NextRequest, ctx: any) {
   }
 
   if (body.action === 'update') {
-    const { itemTitle, itemDescription, acceptanceCriteria, by } = body as { itemTitle?: string; itemDescription?: string; acceptanceCriteria?: string; by?: string };
+    const { workType, itemTitle, itemDescription, acceptanceCriteria, by } = body as { workType?: string; itemTitle?: string; itemDescription?: string; acceptanceCriteria?: string; by?: string };
     // Allow facilitator or granted editor to update
     const isFac = !!s.facilitatorId && s.facilitatorId === by;
     const isGranted = s.round.editorId && s.round.editorId === by && s.round.editStatus === 'granted';
     if (!isFac && !isGranted) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
+    if (typeof workType === 'string') s.round.workType = workType as any;
     if (typeof itemTitle === 'string') s.round.itemTitle = String(itemTitle).slice(0, 200);
     if (typeof itemDescription === 'string') s.round.itemDescription = String(itemDescription).slice(0, 5000);
     if (typeof acceptanceCriteria === 'string') s.round.acceptanceCriteria = String(acceptanceCriteria).slice(0, 5000);
@@ -103,10 +113,14 @@ export async function POST(req: NextRequest, ctx: any) {
       return NextResponse.json({ error: "not_finalizable" }, { status: 400 });
     }
     s.finalizedItems = s.finalizedItems ?? [];
+    const roundTasks = (s.round.tasks ?? []);
+    const approvedTasks = roundTasks.filter((t:any)=> t.status === 'approved').map((t:any)=>({ id: t.id, text: t.text, status: t.status }));
     s.finalizedItems.push({
-      title: s.round.itemTitle ?? s.title,
+      workType: s.round.workType,
+      title: (s.round.itemTitle && s.round.itemTitle.trim().length>0) ? s.round.itemTitle : 'Unrefined item',
       description: s.round.itemDescription,
       acceptanceCriteria: s.round.acceptanceCriteria,
+      tasks: approvedTasks,
       value: String(res.rounded),
       average: res.average ?? 0,
       decidedAt: Date.now(),
@@ -115,7 +129,8 @@ export async function POST(req: NextRequest, ctx: any) {
       `Finalized "${s.round.itemTitle ?? s.title}" at ${String(res.rounded)}`,
       ...((s.activity ?? []).slice(0, 99))
     ];
-    s.round = { status: "idle" };
+    // Reset left rail to allow creating a new work item immediately
+    s.round = { status: 'idle' } as any;
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   }
 

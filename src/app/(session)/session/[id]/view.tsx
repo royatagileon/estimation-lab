@@ -1,6 +1,16 @@
 "use client";
-import { useEffect, useMemo, useState, Suspense } from "react";
-import { Crown } from "lucide-react";
+import { useEffect, useMemo, useState, Suspense, useRef } from "react";
+import { Star, Check, X as XIcon, Trash2, Plus, MoreVertical } from "lucide-react";
+const workTypeDescriptions: Record<string,string> = {
+  'defect': 'bug fix for broken or regressed behavior',
+  'enhancement': 'improve existing feature such as UX or performance or small additions',
+  'new-request': 'net new capability not currently supported',
+  'ktlo': 'maintenance and operations such as upgrades, patches, monitoring, deprecations',
+  'compliance': 'regulatory or security work such as audits, policies, data retention, access controls',
+  'kaizen': 'continuous improvement such as refactors, technical debt, developer experience improvements',
+  'research': 'spike or feasibility or prototype',
+  'testing-qa': 'tests, automation, regression runs, flaky test fixes',
+};
 import { motion, AnimatePresence } from "framer-motion";
 import { fireConfettiOnce } from '@/lib/confetti';
 import useSWR from "swr";
@@ -22,11 +32,15 @@ export function SessionView({ id }: { id: string }) {
   const notJoined = typeof window !== 'undefined' ? !localStorage.getItem('pid:' + (s?.id ?? '')) : true;
   // Inline editor state (facilitator only)
   const [showEditor, setShowEditor] = useState(false);
+  const [workType, setWorkType] = useState<
+    'defect'|'enhancement'|'new-request'|'ktlo'|'compliance'|'kaizen'|'research'|'testing-qa'|''
+  >('');
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [criteria, setCriteria] = useState<string[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<string,string>>({});
   const [showOtherTasks, setShowOtherTasks] = useState(false);
+  const [confirmRemoveCriteriaIdx, setConfirmRemoveCriteriaIdx] = useState<number|null>(null);
 
   // Derivations and effects must be declared before any return
   const numericVotes = useMemo(() => {
@@ -46,11 +60,409 @@ export function SessionView({ id }: { id: string }) {
     const high = parts.find(p => Number(p.vote) === maxV);
     return { high: { name: high?.name ?? '—', v: maxV }, low: { name: low?.name ?? '—', v: minV } };
   }, [s?.participants]);
+
+  function getContrastingText(bg: string | undefined): string | undefined {
+    if (!bg) return undefined;
+    // Handle hsl(h, s%, l%) quickly
+    const hsl = bg.match(/hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)/i);
+    if (hsl) {
+      const l = parseInt(hsl[3], 10) / 100;
+      return l > 0.6 ? '#111' : '#fff';
+    }
+    const rgb = bg.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (rgb) {
+      const r = parseInt(rgb[1],10), g=parseInt(rgb[2],10), b=parseInt(rgb[3],10);
+      const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+      return luminance > 0.6 ? '#111' : '#fff';
+    }
+    // Default to white text
+    return '#fff';
+  }
+
+  function randomColor() {
+    return `hsl(${Math.floor(Math.random()*360)}, 85%, 50%)`;
+  }
   useEffect(() => {
     if (s?.round?.status === 'revealed' && unanimous) {
       fireConfettiOnce(`round-${s.id}-${s.createdAt}-${s.finalizedItems?.length ?? 0}`);
     }
   }, [s?.round?.status, unanimous, s?.id, s?.createdAt, s?.finalizedItems?.length]);
+
+  // ===== Secret Game State =====
+  const unlockSeq = useMemo(() => ['X','21','3','21','X'], []); // secret symbol game
+  const [unlockIndex, setUnlockIndex] = useState(0);
+  const [secretUnlocked, setSecretUnlocked] = useState(false);
+  const [secretActive, setSecretActive] = useState(false);
+  const [symbols, setSymbols] = useState<string[] | null>(null); // length 12 mapping deck index -> symbol
+  const [revealed, setRevealed] = useState<number[]>([]);
+  const [matched, setMatched] = useState<Set<number>>(new Set());
+  const [comparing, setComparing] = useState(false);
+  const [ariaMessage, setAriaMessage] = useState('');
+  const [showWinToast, setShowWinToast] = useState(false);
+
+  function strongShuffle<T>(arr: T[]): T[] {
+    const a = arr.slice();
+    const len = a.length;
+    const rand = new Uint32Array(len);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(rand);
+    for (let i = len - 1; i > 0; i--) {
+      const r = rand[i] ?? Math.floor(Math.random() * (i + 1));
+      const j = r % (i + 1);
+      const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  const symbolList = ['♦','♠','♣','♥','★','👍'] as const;
+  const symbolName: Record<string,string> = { '♦': 'diamond', '♠': 'spade', '♣': 'club', '♥': 'heart', '★': 'star', '👍': 'thumbs up' };
+
+  function dealSymbols() {
+    const pairs = symbolList.flatMap(sym => [sym, sym]);
+    const deckLen = 12;
+    const pool = strongShuffle(pairs);
+    if (pool.length !== deckLen) return;
+    setSymbols(pool);
+    setRevealed([]);
+    setMatched(new Set());
+    setComparing(false);
+    setShowWinToast(false);
+  }
+
+  function enterGame() {
+    setSecretActive(true);
+    // hide Play button while active
+    setSecretUnlocked(false);
+    dealSymbols();
+  }
+
+  function exitGame() {
+    setSecretActive(false);
+    setSymbols(null);
+    setRevealed([]);
+    setMatched(new Set());
+    setComparing(false);
+    setShowWinToast(false);
+    setAriaMessage('');
+    // hide Play button until sequence is entered again
+    setSecretUnlocked(false);
+  }
+
+  // Expose control API for facilitator override
+  useEffect(() => {
+    (window as any).refinementPokerSecretGame = {
+      end: () => exitGame(),
+    };
+    return () => {
+      if ((window as any).refinementPokerSecretGame) delete (window as any).refinementPokerSecretGame;
+    };
+  }, []);
+
+  // Auto-exit when voting starts
+  useEffect(() => {
+    if (secretActive && s?.round?.status === 'voting') {
+      exitGame();
+    }
+  }, [secretActive, s?.round?.status]);
+
+  function processUnlockClick(v: string | number) {
+    if (secretActive) return; // disabled during game
+    const val = String(v);
+    if (val === unlockSeq[unlockIndex]) {
+      const next = unlockIndex + 1;
+      if (next >= unlockSeq.length) {
+        setSecretUnlocked(true);
+        setUnlockIndex(0);
+      } else {
+        setUnlockIndex(next);
+      }
+    } else {
+      // reset; allow overlap if 'X' clicked first
+      setUnlockIndex(val === unlockSeq[0] ? 1 : 0);
+    }
+  }
+
+  // ===== Blackjack Hidden Game =====
+  const bjUnlockSeq = useMemo(() => ['21','2','1','21','X'], []);
+  const [bjUnlockIndex, setBjUnlockIndex] = useState(0);
+  const [bjUnlocked, setBjUnlocked] = useState(false);
+  const [bjActive, setBjActive] = useState(false);
+  const [inviteMode, setInviteMode] = useState(false);
+  const [bjPair, setBjPair] = useState<{ inviterId: string; inviteeId: string } | null>(null);
+  const [bjHostId, setBjHostId] = useState<string | null>(null);
+  const [bjAria, setBjAria] = useState('');
+  const [bjState, setBjState] = useState<null | {
+    deckIdx: number[]; // 12 shuffled indices into fib deck
+    ptr: number;
+    player: { cards: number[]; aces: number };
+    dealer: { cards: number[]; aces: number; holeRevealed: boolean };
+    playerActionCount: number;
+    locked: boolean;
+    scores: Record<string, number>; // by participant id
+    target: number;
+    roundDone: boolean;
+  }>(null);
+  const [pendingInvite, setPendingInvite] = useState<null | { inviterId: string; inviteeId: string }>(null);
+  // Ephemeral reactions for participants (show inline emoji for ~5s)
+  const [ephemeralReactions, setEphemeralReactions] = useState<Record<string, { kind: 'celebrate'|'thumbs'; until: number }>>({});
+  const ephemeralTimers = useRef<Map<string, number>>(new Map());
+
+  function processBJUnlockClick(v: string | number) {
+    if (bjActive) return;
+    const val = String(v);
+    if (val === bjUnlockSeq[bjUnlockIndex]) {
+      const next = bjUnlockIndex + 1;
+      if (next >= bjUnlockSeq.length) {
+        setBjUnlocked(true);
+        setBjUnlockIndex(0);
+      } else {
+        setBjUnlockIndex(next);
+      }
+    } else {
+      setBjUnlockIndex(val === bjUnlockSeq[0] ? 1 : 0);
+    }
+  }
+
+  function fibSymbolAt(index: number) {
+    const arr = [0,1,2,3,5,8,13,21,34,55,'?','X'] as any[];
+    return arr[index];
+  }
+  function bjMapValue(sym: any): { v: number; ace: boolean } {
+    if (sym === '?') return { v: 11, ace: true };
+    if (sym === 'X' || sym === 0 || sym === 13 || sym === 21 || sym === 34 || sym === 55) return { v: 10, ace: false };
+    return { v: Number(sym) || 0, ace: false };
+  }
+  function totalWithAces(cards: number[], aces: number) {
+    let sum = cards.reduce((a,b)=>a+b,0);
+    let soft = false;
+    // aces counted as 11 by default; reduce as needed
+    while (sum > 21 && aces > 0) { sum -= 10; aces--; }
+    if (aces > 0) soft = true; // at least one ace valued 11
+    return { total: sum, soft };
+  }
+  function bjStrongShuffle12(): number[] {
+    const base = Array.from({length:12}, (_,i)=>i);
+    return strongShuffle(base);
+  }
+  function bjDealInitial(deckIdx: number[]) {
+    let ptr = 0;
+    const take = () => deckIdx[ptr++];
+    const p1 = bjMapValue(fibSymbolAt(take()));
+    const d1 = bjMapValue(fibSymbolAt(take()));
+    const p2 = bjMapValue(fibSymbolAt(take()));
+    const d2 = bjMapValue(fibSymbolAt(take()));
+    return {
+      ptr,
+      player: { cards: [p1.v, p2.v], aces: (p1.ace?1:0) + (p2.ace?1:0) },
+      dealer: { cards: [d1.v, d2.v], aces: (d1.ace?1:0) + (d2.ace?1:0), holeRevealed: false },
+    };
+  }
+  function bjBroadcast(payload: any) {
+    fetch(`/api/session/${s!.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'blackjack_event', payload }) });
+  }
+  function bjStartFor(inviterId: string, inviteeId: string) {
+    setBjPair({ inviterId, inviteeId });
+    setBjHostId(inviterId);
+    setBjActive(true);
+    const deckIdx = bjStrongShuffle12();
+    const { ptr, player, dealer } = bjDealInitial(deckIdx);
+    const scores: Record<string, number> = { [inviterId]: 0, [inviteeId]: 0 };
+    const st = { deckIdx, ptr, player, dealer, playerActionCount: 0, locked: false, scores, target: 3, roundDone: false };
+    setBjState(st);
+    bjBroadcast({ type:'state', pair:{inviterId, inviteeId}, hostId: inviterId, state: st });
+  }
+  function bjEnd() {
+    setInviteMode(false);
+    setBjActive(false);
+    setBjPair(null);
+    setBjHostId(null);
+    setBjState(null);
+    setBjUnlocked(false);
+    setBjAria('');
+    bjBroadcast({ type:'end' });
+  }
+  function bjInvite(toId: string) {
+    if (!myPid) return;
+    bjBroadcast({ type:'invite', inviterId: myPid, inviteeId: toId });
+    setInviteMode(false);
+  }
+  function bjAccept(inviterId: string, inviteeId: string) {
+    if (!myPid || myPid !== inviteeId) return;
+    bjBroadcast({ type:'accept', inviterId, inviteeId });
+  }
+  function bjHit(state: any): any {
+    const st = { ...state };
+    const take = () => st.deckIdx[st.ptr++];
+    const card = bjMapValue(fibSymbolAt(take()));
+    st.player.cards = [...st.player.cards, card.v];
+    st.player.aces += card.ace ? 1 : 0;
+    st.playerActionCount += 1;
+    return st;
+  }
+  function bjDealerPlay(state: any): any {
+    const st = { ...state, dealer: { ...state.dealer } };
+    const take = () => st.deckIdx[st.ptr++];
+    st.dealer.holeRevealed = true;
+    let t = totalWithAces(st.dealer.cards, st.dealer.aces).total;
+    while (t <= 16) {
+      const c = bjMapValue(fibSymbolAt(take()));
+      st.dealer.cards.push(c.v);
+      if (c.ace) st.dealer.aces += 1;
+      t = totalWithAces(st.dealer.cards, st.dealer.aces).total;
+    }
+    return st;
+  }
+  function bjResolve(state: any): any {
+    const st = { ...state };
+    const pt = totalWithAces(st.player.cards, st.player.aces).total;
+    const dt = totalWithAces(st.dealer.cards, st.dealer.aces).total;
+    let outcome: 'win'|'lose'|'push' = 'push';
+    if (pt > 21) outcome = 'lose';
+    else if (dt > 21) outcome = 'win';
+    else if (pt > dt) outcome = 'win';
+    else if (pt < dt) outcome = 'lose';
+    const p1 = st.scores[bjPair!.inviterId] ?? 0;
+    const p2 = st.scores[bjPair!.inviteeId] ?? 0;
+    if (outcome === 'win') st.scores[bjPair!.inviterId] = p1 + 1; // attribute to host for simplicity
+    if (outcome === 'lose') st.scores[bjPair!.inviteeId] = p2 + 1;
+    st.roundDone = true;
+    st.locked = false;
+    return st;
+  }
+  function bjHandleAction(fromId: string, action: 'hit'|'stand'|'double') {
+    if (!bjActive || !bjPair || bjHostId !== myPid || !bjState) return; // host processes
+    let st = { ...bjState } as any;
+    if (st.roundDone) return;
+    if (st.locked) return;
+    if (action === 'hit') {
+      st = bjHit(st);
+      const pt = totalWithAces(st.player.cards, st.player.aces).total;
+      if (pt > 21) {
+        st.locked = true;
+        st = bjDealerPlay(st);
+        st = bjResolve(st);
+      }
+    } else if (action === 'double') {
+      if (st.playerActionCount === 0) {
+        st = bjHit(st);
+        st.locked = true;
+        st = bjDealerPlay(st);
+        st = bjResolve(st);
+      } else {
+        return;
+      }
+    } else if (action === 'stand') {
+      st.locked = true;
+      st = bjDealerPlay(st);
+      st = bjResolve(st);
+    }
+    setBjState(st);
+    bjBroadcast({ type:'state', pair: bjPair, hostId: bjHostId, state: st });
+  }
+
+  // Consume blackjack events from activity
+  const lastBjTsRef = useRef<number>(0);
+  useEffect(() => {
+    const acts = (s?.activity ?? []).filter(a => a.startsWith?.('BJ:'));
+    for (const raw of acts) {
+      try {
+        const obj = JSON.parse(raw.slice(3));
+        const t = obj.t ?? 0;
+        if (t <= lastBjTsRef.current) continue;
+        lastBjTsRef.current = t;
+        const payload = obj;
+        if (payload.type === 'invite') {
+          if (payload.inviteeId === myPid && !bjActive) {
+            // show join toast via local state
+            setPendingInvite({ inviterId: payload.inviterId, inviteeId: payload.inviteeId });
+          }
+        } else if (payload.type === 'accept') {
+          if (payload.inviterId === myPid && !bjActive) {
+            bjStartFor(payload.inviterId, payload.inviteeId);
+          }
+        } else if (payload.type === 'state') {
+          if (payload.pair && myPid && (myPid === payload.pair.inviterId || myPid === payload.pair.inviteeId)) {
+            setBjPair(payload.pair);
+            setBjHostId(payload.hostId);
+            setBjActive(true);
+            setBjState(payload.state);
+          }
+        } else if (payload.type === 'action') {
+          if (payload.pair && myPid && (myPid === payload.pair.inviterId || myPid === payload.pair.inviteeId) && bjHostId === myPid) {
+            bjHandleAction(payload.from, payload.action);
+          }
+        } else if (payload.type === 'end') {
+          if (bjActive) bjEnd();
+        }
+      } catch {}
+    }
+  }, [s?.activity]);
+
+  // Inline celebration/thumbs reactions via activity log
+  const lastBurstRef = useRef<number>(0);
+  useEffect(()=>{
+    const acts = (s?.activity ?? []).filter(a => a.startsWith?.('B:'));
+    for (const raw of acts) {
+      const parts = raw.split(':'); // B:kind:pid:ts
+      if (parts.length < 4) continue;
+      const ts = Number(parts[3]);
+      if (ts <= lastBurstRef.current) continue;
+      lastBurstRef.current = ts;
+      const kind = (parts[1] === 'celebrate' ? 'celebrate' : 'thumbs') as 'celebrate'|'thumbs';
+      const pid = parts[2];
+      const until = Date.now() + 5000;
+      setEphemeralReactions(prev => ({ ...prev, [pid]: { kind, until } }));
+      const old = ephemeralTimers.current.get(pid);
+      if (old) window.clearTimeout(old);
+      const to = window.setTimeout(()=>{
+        setEphemeralReactions(prev => {
+          const next = { ...prev };
+          if (next[pid] && next[pid]!.until <= Date.now()) delete next[pid];
+          return next;
+        });
+        ephemeralTimers.current.delete(pid);
+      }, 5200);
+      ephemeralTimers.current.set(pid, to);
+    }
+  }, [s?.activity]);
+
+  // (Removed older floating burst animation in favor of inline emoji with timeout)
+
+
+  async function handleTileClickGame(idx: number) {
+    if (!secretActive || !symbols) return;
+    if (comparing) return;
+    if (matched.has(idx)) return;
+    if (revealed.includes(idx)) return;
+    const nextRev = [...revealed, idx];
+    setRevealed(nextRev);
+    setAriaMessage(`tile revealed: ${symbolName[symbols[idx]]}`);
+    if (nextRev.length === 2) {
+      setComparing(true);
+      const [a, b] = nextRev;
+      const isMatch = symbols[a] === symbols[b];
+      if (isMatch) {
+        setTimeout(() => {
+          setMatched(prev => {
+            const n = new Set(prev); n.add(a); n.add(b); return n;
+          });
+          setRevealed([]);
+          setComparing(false);
+        }, 150);
+      } else {
+        setTimeout(() => {
+          setRevealed([]);
+          setComparing(false);
+        }, 800);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!secretActive || !symbols) return;
+    if (matched.size === 12) {
+      setShowWinToast(true);
+    }
+  }, [matched, secretActive, symbols]);
 
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
@@ -66,6 +478,7 @@ export function SessionView({ id }: { id: string }) {
   const myPid = typeof window !== 'undefined' ? localStorage.getItem('pid:'+ (s?.id ?? '')) ?? undefined : undefined;
   const iAmFacilitator = Boolean(myPid && s && s.facilitatorId === myPid);
   const iCanEditWorkItem = iAmFacilitator || (s.round.editStatus === 'granted' && s.round.editorId === myPid);
+  const [assignMode, setAssignMode] = useState(false);
   async function selfJoin() {
     if (!s || joining) return;
     setJoining(true);
@@ -83,6 +496,16 @@ export function SessionView({ id }: { id: string }) {
 
   async function vote(v: string | number) {
     if (!myPid) return;
+    // tap again to clear
+    const myCurrent = s?.participants.find((p:any)=>p.id===myPid)?.vote;
+    if (String(myCurrent) === String(v)) {
+      await fetch(`/api/session/${s!.id}/vote`, {
+        method: 'POST', headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ participantId: myPid, value: null })
+      });
+      mutate();
+      return;
+    }
     await mutate(async (curr) => {
       if (!curr) return curr as any;
       const next = { ...curr } as Session;
@@ -106,6 +529,7 @@ export function SessionView({ id }: { id: string }) {
   function openEditor() {
     const canEdit = iAmFacilitator || (s?.round.editStatus === 'granted' && s?.round.editorId === myPid);
     if (!canEdit) return;
+    setWorkType((s?.round.workType as any) || '');
     setEditTitle(s?.round.itemTitle || '');
     setEditDesc(s?.round.itemDescription || '');
     setCriteria((s?.round.acceptanceCriteria || '').split('\n').filter(Boolean));
@@ -122,8 +546,8 @@ export function SessionView({ id }: { id: string }) {
     // If an item already exists, update it; otherwise start a new round
     const isUpdate = Boolean(s?.round.itemTitle);
     const payload = isUpdate
-      ? { action:'update', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, by: myPid }
-      : { action:'start', itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid };
+      ? { action:'update', workType: workType || undefined, itemTitle:title, itemDescription:description, acceptanceCriteria: ac, by: myPid }
+      : { action:'start', workType: workType || undefined, itemTitle:title, itemDescription:description, acceptanceCriteria: ac, actorParticipantId: myPid };
     await fetch(`/api/session/${s!.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     setShowEditor(false);
     mutate();
@@ -136,32 +560,143 @@ export function SessionView({ id }: { id: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
       <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
-        <h2 className="font-semibold mb-2">Participants</h2>
-        <div className="max-h-56 md:max-h-64 overflow-auto pr-1">
-          <ul className="text-sm space-y-1">
+        <h2 className="font-semibold mb-2">Participants <span className="text-xs text-slate-500">({s.participants.length})</span></h2>
+        <div className="max-h-48 overflow-auto pr-1">
+          <ul className="space-y-2">
             {s.participants.map((p: any) => {
-              const votedClass = p.voted ? 'text-emerald-700 dark:text-emerald-300' : '';
+              const isFac = p.id===s.facilitatorId;
+              const canShowMenu = (p.id===myPid) || (iAmFacilitator && !isFac);
               return (
-                <li key={p.id} className={`${p.id===s.facilitatorId? 'font-semibold' : ''} ${votedClass}`}>
-                  {p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''} {p.id===s.facilitatorId && <span aria-label="Facilitator" title="Facilitator">👑</span>}
-                  {iAmFacilitator && p.id !== s.facilitatorId && (
-                    <button className="ml-2 text-xs underline" onClick={async ()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) }); }}>make facilitator</button>
-                  )}
+                <li key={p.id} className="group relative" data-participant-id={p.id}>
+                  <div className={`flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 ${
+                    (s.round.status==='voting' && p.voted) ? 'bg-emerald-500 text-white border-emerald-600' : ''
+                  } ${inviteMode? 'cursor-pointer' : ''}`}
+                    title={inviteMode ? 'Click to invite to Blackjack' : assignMode && iAmFacilitator ? 'Click to assign facilitator' : undefined}
+                    onClick={async()=>{
+                      if (inviteMode && p.id !== myPid) { bjInvite(p.id); return; }
+                      if (assignMode && iAmFacilitator && p.id !== s.facilitatorId) {
+                        await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'transfer_facilitator', toParticipantId: p.id, actorParticipantId: myPid }) });
+                        setAssignMode(false);
+                        mutate();
+                        return;
+                      }
+                    }}
+                  >
+                    {isFac ? (
+                      <span className={`inline-grid h-6 w-6 place-items-center rounded-full ${p.handRaised ? 'bg-yellow-500' : 'bg-yellow-400'} text-white`} title={p.handRaised ? 'Hand raised' : 'Facilitator'}>
+                        <Star className="h-3.5 w-3.5" />
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-grid h-6 w-6 place-items-center rounded-full border text-xs"
+                        aria-hidden
+                        style={{ backgroundColor: p.color || undefined, color: p.color ? getContrastingText(p.color) : undefined }}
+                        title="Click to cycle color"
+                        onClick={async()=>{
+                          if (p.id !== myPid) return;
+                          const nextColor = randomColor();
+                          await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'set_participant_color', actorParticipantId: myPid, color: nextColor }) });
+                          mutate();
+                        }}
+                      > {p.name?.[0]?.toUpperCase() || 'P'} </span>
+                    )}
+                    <span className="flex-1 truncate">{p.name ?? 'Member'}{p.id===myPid ? ' (You)' : ''}</span>
+                    <div className="flex items-center gap-2">
+                      {p.handRaised && <span title="Hand raised" aria-label="Hand raised">✋</span>}
+                      {ephemeralReactions[p.id] && (
+                        <span title={ephemeralReactions[p.id]!.kind==='celebrate' ? 'Celebrate' : 'Thumbs up'} aria-hidden>{ephemeralReactions[p.id]!.kind==='celebrate' ? '🎉' : '👍'}</span>
+                      )}
+                      {canShowMenu && (
+                        <div
+                          className="opacity-60 hover:opacity-100 transition cursor-pointer"
+                          role="button"
+                          aria-label="Participant actions"
+                          tabIndex={0}
+                          onClick={(e)=>{
+                            const host = (e.currentTarget.closest('li')) as HTMLElement | null;
+                            if (!host) return;
+                            const menu = host.querySelector('[data-participant-menu]') as HTMLElement | null;
+                            if (menu) menu.classList.toggle('hidden');
+                          }}
+                          onKeyDown={(e)=>{ if (e.key==='Enter' || e.key===' ') (e.currentTarget as HTMLElement).click(); }}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                    {/* Inline popover menu */}
+                    <div data-participant-menu className="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-white/95 border rounded-full px-2 py-1 shadow flex items-center gap-2">
+                      {p.id===myPid && !p.handRaised && (
+                        <button title="Raise hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'raise_hand', actorParticipantId: myPid }) }); mutate(); }}>✋</button>
+                      )}
+                      {p.handRaised && (
+                        <>
+                          {iAmFacilitator && p.id!==myPid && (
+                            <button title="Lower hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>⬇️</button>
+                          )}
+                          {p.id===myPid && (
+                            <button title="Lower hand" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'lower_hand', targetParticipantId: p.id, actorParticipantId: myPid }) }); mutate(); }}>⬇️</button>
+                          )}
+                        </>
+                      )}
+                      {p.id===myPid && (
+                        <>
+                          <button title="Celebrate" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: myPid, kind: 'celebrate' }) }); }}>🎉</button>
+                          <button title="Thumbs up" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'burst', actorParticipantId: myPid, kind: 'thumbs' }) }); }}>👍</button>
+                        </>
+                      )}
+                      {iAmFacilitator && !isFac && (
+                        <button title="Assign Facilitator (then click a name)" onClick={()=>{ setAssignMode(true); const host = document.querySelector(`[data-participant-id="${p.id}"]`)?.querySelector('[data-participant-menu]') as HTMLElement | null; if (host) host.classList.add('hidden'); }}>⭐</button>
+                      )}
+                    </div>
+                  </div>
                 </li>
               );
             })}
           </ul>
+          {/* Rejoin Requests */}
+          {Boolean((s as any).rejoinRequests?.length) && (
+            <div className="mt-3 space-y-2">
+              {((s as any).rejoinRequests as any[]).map((r:any)=>(
+                <div key={r.id} className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 bg-orange-100 text-orange-900">
+                  <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-orange-400 text-white" aria-hidden>!</span>
+                  <span className="flex-1 truncate">{r.name} requests to rejoin</span>
+                  {iAmFacilitator && (
+                    <button className="rounded-full bg-orange-500 text-white px-3 py-1 text-xs" onClick={async()=>{
+                      await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_rejoin', targetParticipantId: r.id, actorParticipantId: myPid }) });
+                      mutate();
+                    }}>Approve</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="text-xs text-gray-500 mt-2">Share: <Link href={shareLink} className="underline">{shareLink}</Link></div>
-        <div className="text-xs text-gray-500">Code: {s.code}</div>
+        {/* Session code intentionally hidden per request */}
         {notJoined && (
-          <div className="mt-3 space-y-2">
-            <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
-            <button disabled={joining} className="w-full border rounded px-3 py-2 disabled:opacity-50" onClick={selfJoin}>{joining ? 'Joining…' : 'Join Session'}</button>
+          <div className="mt-3">
+            <div className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11">
+              <input className="flex-1 bg-transparent outline-none placeholder:italic placeholder:text-slate-400" placeholder="Enter your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
+              {Boolean((s as any).removedList?.length) ? (
+                <button className="rounded-full bg-orange-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
+                  const last = ((s as any).removedList as any[]).find((r:any)=> r.id === (localStorage.getItem('pid:'+s.id) || 'anon'));
+                  if (!last) return;
+                  const now = Date.now();
+                  if (now - (last.removedAt||0) >= 24*60*60*1000) {
+                    selfJoin();
+                    return;
+                  }
+                  await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'request_rejoin', participantId: localStorage.getItem('pid:'+s.id) || 'anon', name: displayName || 'Guest' }) });
+                  mutate();
+                }}>Request</button>
+              ) : (
+                <button disabled={joining || !displayName.trim()} className="rounded-full bg-emerald-500 text-white px-4 py-1.5 text-sm disabled:opacity-60" onClick={selfJoin}>{joining ? 'Joining…' : 'Join'}</button>
+              )}
+            </div>
           </div>
         )}
         <div className="mt-5">
-          <h3 className="text-sm font-medium mb-2">Work item</h3>
+          <h3 className="text-sm font-medium mb-2">Ready for Refinement</h3>
           {iCanEditWorkItem ? (
             <div>
               {!showEditor && (
@@ -192,27 +727,102 @@ export function SessionView({ id }: { id: string }) {
               {showEditor && (
                 <div className="space-y-3">
                   <div>
+                    <label htmlFor="work-type" className="block text-sm font-medium mb-1">Work Type</label>
+                    <select
+                      id="work-type"
+                      className="w-full rounded-xl border px-3 py-2 focus-ring"
+                      aria-describedby="work-type-help"
+                      value={workType}
+                      onChange={(e)=> setWorkType(e.target.value as any)}
+                      title={workType ? workTypeDescriptions[workType] : 'Select work type'}
+                    >
+                      <option value="" disabled>Select work type</option>
+                      <option value="defect">Defect</option>
+                      <option value="enhancement">Enhancement</option>
+                      <option value="new-request">New Request</option>
+                      <option value="ktlo">KTLO</option>
+                      <option value="compliance">Compliance</option>
+                      <option value="kaizen">Kaizen</option>
+                      <option value="research">Research</option>
+                      <option value="testing-qa">Testing/QA</option>
+                    </select>
+                    <p id="work-type-help" className="text-xs text-slate-500 mt-1">{workType ? workTypeDescriptions[workType] : 'Choose the most appropriate type for this work item.'}</p>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium mb-1">Title</label>
-                    <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
+                    <input
+                      className="w-full rounded-xl border px-3 py-2 focus-ring placeholder:italic placeholder:text-slate-400"
+                      value={editTitle}
+                      placeholder="Brief title of work item (e.g., 'Add date filter')"
+                      onChange={e=>setEditTitle(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Description</label>
-                    <textarea className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40" value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
+                    <textarea
+                      className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40 placeholder:italic placeholder:text-slate-400"
+                      placeholder="Details and context (e.g., 'Users need to filter results by date to speed searches')."
+                      value={editDesc}
+                      onChange={e=>setEditDesc(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Acceptance criteria</label>
                     <div className="space-y-2">
-                      {criteria.map((c, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input className="flex-1 rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }} />
-                          <button className="text-xs underline" onClick={()=>{ const next=criteria.slice(); next.splice(idx,1); setCriteria(next); }}>Remove</button>
-                        </div>
-                      ))}
-                      <button className="rounded-full border px-3 py-1.5 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
+                      {criteria.map((c, idx) => {
+                        const confirm = confirmRemoveCriteriaIdx === idx;
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <div className={`flex items-center gap-2 ${confirm ? 'bg-red-50 dark:bg-red-900/20 rounded-lg p-1' : ''}`}>
+                              <input
+                                className="w-full rounded-xl border px-3 py-2 focus-ring placeholder:italic placeholder:text-slate-400"
+                                placeholder="Completion conditions (e.g., 'Date filter works')."
+                                value={c}
+                                onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }}
+                              />
+                              <button
+                                type="button"
+                                aria-label="Add criteria below"
+                                className="h-8 w-8 rounded-full grid place-items-center bg-emerald-500 text-white"
+                                onClick={()=>{
+                                  const next = criteria.slice();
+                                  next.splice(idx+1, 0, '');
+                                  setCriteria(next);
+                                }}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={confirm ? 'Confirm remove criteria' : 'Remove criteria'}
+                                className="h-8 w-8 rounded-full grid place-items-center bg-red-500 text-white"
+                                onClick={()=>{
+                                  if (confirm) {
+                                    const next = criteria.slice();
+                                    next.splice(idx,1);
+                                    setCriteria(next);
+                                    setConfirmRemoveCriteriaIdx(null);
+                                  } else {
+                                    setConfirmRemoveCriteriaIdx(idx);
+                                  }
+                                }}
+                              >
+                                <XIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                            {confirm && (
+                              <div className="text-xs text-red-600 dark:text-red-300">Click X to remove</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div>
+                        <button type="button" className="rounded-xl border px-3 py-2 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Update' : 'Show'}</button>
+                    <button className="rounded-xl bg-accent text-white px-4 py-2 text-sm disabled:opacity-60 transition hover:scale-[1.01]" onClick={submitEditor} disabled={!editTitle.trim() || !editDesc.trim() || criteria.filter(c=>c.trim()).length===0}>{s.round.itemTitle? 'Next' : 'Next'}</button>
                     <button className="rounded-xl border px-4 py-2 text-sm" onClick={()=>setShowEditor(false)}>Cancel</button>
                     {s.round.editStatus==='granted' && s.round.editorId===myPid && (
                       <button className="rounded-xl border px-4 py-2 text-sm" onClick={async()=>{
@@ -255,27 +865,50 @@ export function SessionView({ id }: { id: string }) {
             <div className="space-y-2">
               {(() => {
                 const allTasks = (s.round.tasks ?? []) as any[];
+                const order = (t:any) => t.status==='approved' ? 2 : t.status==='rejected' ? 1 : 0;
+                const byCreated = (a:any,b:any) => (a.createdAt??0) - (b.createdAt??0);
                 const approved = allTasks.filter(t=>t.status==='approved');
-                const others = allTasks.filter(t=>t.status!=='approved');
-                const list = s.round.status === 'voting' && !showOtherTasks ? approved : allTasks;
+                const baseList = s.round.status === 'voting' && !showOtherTasks ? approved : allTasks;
+                const list = baseList.slice().sort((a,b)=> order(a)-order(b) || byCreated(a,b));
                 return list.map((t:any) => (
-                <div key={t.id} className={`rounded-xl border p-2 text-sm ${t.status==='rejected'?'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200':''} ${t.status==='approved'?'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200':''}`}>
-                  <textarea className="w-full rounded border px-2 py-1 bg-transparent outline-none resize-y min-h-[40px]" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))} onBlur={async(e)=>{
-                    const val = (e.target as HTMLTextAreaElement).value;
-                    await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
-                    setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
-                    mutate();
-                  }} />
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{t.status}</span>
-                    {iAmFacilitator && t.status!=='approved' && (
-                      <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Approve</button>
-                    )}
-                    {iAmFacilitator && t.status!=='rejected' && (
-                      <button className="text-xs underline" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reject_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>Reject</button>
-                    )}
+                  <div key={t.id} className="group text-sm border rounded-lg p-2">
+                    <div className="flex items-start gap-2">
+                      <textarea
+                        className="w-full px-2 py-1 bg-transparent outline-none resize-y min-h-[40px] placeholder:italic placeholder:text-slate-400"
+                        placeholder="enter text here…"
+                        value={taskDrafts[t.id] ?? t.text}
+                        onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))}
+                        onBlur={async(e)=>{
+                        const val = (e.target as HTMLTextAreaElement).value;
+                        await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
+                        setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
+                        mutate();
+                      }}
+                      />
+                      {iAmFacilitator && (
+                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {t.status!=='approved' && (
+                            <button className="h-7 w-7 grid place-items-center rounded bg-emerald-500 text-white" title="Approve" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
+                              <Check className="h-4 w-4" />
+                            </button>
+                          )}
+                          {t.status!=='rejected' && (
+                            <button className="h-7 w-7 grid place-items-center rounded bg-red-500 text-white" title="Reject" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reject_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
+                              <XIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button className="h-7 w-7 grid place-items-center rounded bg-slate-200 dark:bg-neutral-800" title="Remove" onClick={async()=>{ await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'remove_task', taskId: t.id, actorParticipantId: myPid }) }); mutate(); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`text-xs ${t.status==='pending' ? 'text-slate-500 dark:text-slate-400' : t.status==='approved' ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                        {t.status}
+                      </span>
+                    </div>
                   </div>
-                </div>
                 ));
               })()}
               {s.round.status === 'voting' && (s.round.tasks ?? []).some((t:any)=>t.status!=='approved') && (
@@ -290,6 +923,13 @@ export function SessionView({ id }: { id: string }) {
       </aside>
 
       <main className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
+        {pendingInvite && myPid === pendingInvite.inviteeId && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border bg-white/90 px-4 py-2 text-sm shadow" role="status" aria-live="polite">
+            <span className="mr-3">Blackjack invite from {s.participants.find((p:any)=>p.id===pendingInvite.inviterId)?.name || 'Player'}</span>
+            <button className="rounded bg-emerald-500 text-white px-2 py-1 mr-2" onClick={()=>{ bjAccept(pendingInvite.inviterId, pendingInvite.inviteeId); }}>Join</button>
+            <button className="rounded border px-2 py-1" onClick={()=>{ setPendingInvite(null); }}>Dismiss</button>
+          </div>
+        )}
         <Suspense fallback={null}>{/* avoid hook ordering issues caused by dynamic imports */}</Suspense>
         <h2 className="font-semibold mb-2">{isBusiness ? "Business Value Sizing" : "Refinement Poker"}</h2>
         <div className="grid grid-cols-4 gap-3">
@@ -299,17 +939,92 @@ export function SessionView({ id }: { id: string }) {
               <motion.button
                 key={String(v)}
                 whileTap={{ scale: 0.98 }}
-                className={`h-11 rounded-lg border text-sm font-medium select-none focus-ring grid place-items-center ${selected? 'bg-green-500 text-white border-green-500': 'hover:bg-slate-800/40'}`}
+                onMouseDown={(e)=>{
+                  // long press to start voting if facilitator and idle
+                  if (!iAmFacilitator || s.round.status!=='idle') return;
+                  const id = setTimeout(async()=>{
+                    await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
+                    mutate();
+                  }, 650);
+                  const clear = ()=> { clearTimeout(id); window.removeEventListener('mouseup', clear); window.removeEventListener('mouseleave', clear); };
+                  window.addEventListener('mouseup', clear); window.addEventListener('mouseleave', clear);
+                }}
+                data-value={String(v)}
+                data-testid={`vote-tile-${String(v)}`}
+                className={`h-16 min-w-[56px] px-4 rounded-xl border text-base font-semibold select-none focus-ring grid place-items-center shadow transition ${
+                  secretActive
+                    ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
+                    : selected
+                      ? 'bg-green-500 text-white border-green-600'
+                      : s.round.status==='voting'
+                        ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
+                        : 'bg-white/70 dark:bg-neutral-900/70 text-neutral-800 dark:text-neutral-100 hover:bg-white dark:hover:bg-neutral-900'
+                }`}
                 aria-label={`vote ${v}`}
-                onClick={()=>vote(v as any)}
+                onClick={()=>{
+                  processUnlockClick(v as any);
+                  processBJUnlockClick(v as any);
+                  if (secretActive) {
+                    const idx = deck.findIndex(d => String(d)===String(v));
+                    handleTileClickGame(idx);
+                    return;
+                  }
+                  vote(v as any);
+                }}
               >
-                <span className="inline-flex items-center gap-2">{String(v)}</span>
+                <span className="inline-flex items-center gap-2">
+                  {secretActive && symbols ? (()=>{
+                    const idx = deck.findIndex(d => String(d)===String(v));
+                    const show = revealed.includes(idx) || matched.has(idx);
+                    return show ? <span className="text-2xl" aria-hidden>{symbols[idx]}</span> : <>{String(v)}</>;
+                  })() : String(v)}
+                </span>
               </motion.button>
             );
           })}
         </div>
-        <div className="mt-2 text-right">
-          <button className="text-xs underline" onClick={unvote}>Clear selection</button>
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <small className="muted">Tap your selection again to clear</small>
+            <span className="sr-only" role="status" aria-live="polite">{ariaMessage}</span>
+          </div>
+          <div>
+            {bjUnlocked && !bjActive && s.round.status !== 'voting' && (
+              <button
+                aria-label="Invite"
+                data-testid="bj-invite-toggle"
+                className="rounded-full border bg-white/80 px-3 py-1 text-xs mr-2"
+                onClick={()=> setInviteMode(m=>!m)}
+              >{inviteMode ? 'Cancel' : 'Invite'}</button>
+            )}
+            {bjActive && (
+              <button
+                aria-label="End Blackjack"
+                data-testid="bj-end"
+                className="rounded-full border bg-white/80 px-3 py-1 text-xs mr-2"
+                onClick={()=> bjEnd()}
+              >End Blackjack</button>
+            )}
+            {secretUnlocked && !secretActive && s.round.status !== 'voting' && (
+              <button
+                aria-label="Play secret game"
+                data-testid="secret-toggle"
+                className="rounded-full border bg-white/80 px-3 py-1 text-xs"
+                onClick={()=> enterGame()}
+              >Play</button>
+            )}
+            {secretActive && (
+              <button
+                aria-label="Play secret game"
+                data-testid="secret-toggle"
+                className="rounded-full border bg-white/80 px-3 py-1 text-xs"
+                onClick={()=> exitGame()}
+              >Exit</button>
+            )}
+            {showWinToast && secretActive && (
+              <span className="ml-2 text-xs">You win! <button className="underline" onClick={()=>dealSymbols()}>Play again?</button></span>
+            )}
+          </div>
         </div>
 
         {isBusiness && (
@@ -324,30 +1039,39 @@ export function SessionView({ id }: { id: string }) {
         )}
 
         <div className="mt-3 flex gap-2 items-center">
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
-          <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50 transition hover:scale-[1.01]" disabled={!iAmFacilitator} onClick={reveal} title={!iAmFacilitator? 'Facilitator only': undefined}>Reveal</button>
+          <button className="border rounded px-3 py-2 disabled:opacity-50 transition hover:scale-[1.01]" disabled={!iAmFacilitator} onClick={revote} title={!iAmFacilitator? 'Facilitator only': undefined}>Revote</button>
           <span className="text-xs text-slate-500 ml-auto">{s.round.status}</span>
         </div>
 
-        {/* Results box (persistent) */}
+        {/* Notifications (formerly Results) */}
         <div className="mt-3">
           <motion.div initial={{ opacity: 0, y: -2 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border p-3 text-sm bg-[--color-warn-bg] text-[--color-warn-fg] dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/30">
-            <div className="text-xs font-medium mb-1">Results</div>
+            <div className="text-xs font-medium mb-1">Notifications</div>
             {s.round.status === 'idle' && ((s.round.tasks??[]).some((t:any)=>t.status==='approved') || (s.round.tasks??[]).length===0) && (
               <div className="flex items-center gap-2">
-                <span>Awaiting facilitator to begin the poker round…</span>
+                <span>Awaiting facilitator to start the poker round…</span>
                 {iAmFacilitator && (
                   <button className="rounded px-2 py-1 text-xs bg-emerald-500 text-white" onClick={async()=>{
                     await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'start_voting', actorParticipantId: myPid }) });
                     mutate();
-                  }}>Begin</button>
+                  }}>Play Poker</button>
                 )}
+              </div>
+            )}
+            {iAmFacilitator && s.round.status==='voting' && (
+              <div className="flex items-center gap-2">
+                <span>If you would like to refine the work item more…</span>
+                <button className="rounded px-2 py-1 text-xs bg-red-500 text-white" onClick={async()=>{
+                  await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'end_voting', actorParticipantId: myPid }) });
+                  mutate();
+                }}>Stop Poker</button>
               </div>
             )}
             {s.round.status === 'revealed' && s.round.results?.allVoted && (
               <div>
                 {s.round.results.unanimous ? (
-                  <div className="text-emerald-700 dark:text-emerald-300">Unanimous! Everyone selected the same card.</div>
+                  <div className="text-emerald-700 dark:text-emerald-300">Confetti! We all played the {(() => { const map = new Map<string,number>(); s.participants.forEach((p:any)=>{ if(p.vote) map.set(String(p.vote),(map.get(String(p.vote))||0)+1); }); const top=[...map.entries()].sort((a,b)=>b[1]-a[1])[0]; return top? top[0]: 'same card'; })()} card!</div>
                 ) : s.round.results.withinWindow ? (
                   <div className="text-emerald-700 dark:text-emerald-300">Ready to finalize at {s.round.results.rounded}. Average {s.round.results.average?.toFixed(1)}.</div>
                 ) : (
@@ -361,7 +1085,7 @@ export function SessionView({ id }: { id: string }) {
                 <button className="rounded-xl bg-emerald-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
                   await fetch(`/api/session/${s.id}/round`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'finalize_confirm', actorParticipantId: myPid }) });
                   mutate();
-                }}>Confirm finalize</button>
+                }}>Move to Ready</button>
               </div>
             )}
           </motion.div>
@@ -369,17 +1093,34 @@ export function SessionView({ id }: { id: string }) {
       </main>
 
       <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
-        <h2 className="font-semibold mb-2">Similar Items</h2>
-        <p className="text-sm text-gray-500">Model suggestion and neighbors…</p>
+        <h2 className="font-semibold mb-2">Ready Work Items</h2>
         {s.finalizedItems && s.finalizedItems.length > 0 && (
           <div className="mt-3">
-            <div className="text-sm font-medium mb-1">Finalized</div>
             <ul className="space-y-2 text-sm">
               {s.finalizedItems.map((fi, idx) => (
-                <li key={idx} className="border rounded p-2">
-                  <div className="font-medium">{fi.title}</div>
-                  <div className="text-xs text-neutral-600">Value: {fi.value} (avg {fi.average.toFixed(1)})</div>
-                </li>
+                <details key={idx} className="border rounded p-2">
+                  <summary className="cursor-pointer font-medium flex items-center justify-between">
+                    <span>{fi.title}</span>
+                    <span className="text-xs">Estimate: {fi.value}</span>
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {fi.description && <div className="text-sm whitespace-pre-wrap">{fi.description}</div>}
+                    {fi.acceptanceCriteria && (
+                      <div>
+                        <div className="text-xs font-medium">Acceptance Criteria</div>
+                        <div className="text-sm whitespace-pre-wrap">{fi.acceptanceCriteria}</div>
+                      </div>
+                    )}
+                    {fi.tasks && fi.tasks.length>0 && (
+                      <div>
+                        <div className="text-xs font-medium">Tasks</div>
+                        <ul className="list-disc pl-4 text-sm space-y-1">
+                          {fi.tasks.map((t:any)=> (<li key={t.id}>{t.text}</li>))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </details>
               ))}
             </ul>
           </div>

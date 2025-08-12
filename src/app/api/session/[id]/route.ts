@@ -44,6 +44,10 @@ export async function POST(req: Request, ctx: any) {
     const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, status: 'rejected' } : t);
+  } else if (body.action === 'remove_task') {
+    const { taskId, actorParticipantId } = body as { taskId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.round.tasks = (s.round.tasks ?? []).filter(t => t.id !== taskId);
   } else if (body.action === 'edit_task') {
     const { taskId, text } = body as { taskId: string; text: string };
     s.round.tasks = (s.round.tasks ?? []).map(t => t.id===taskId ? { ...t, text: String(text).slice(0, 200) } : t);
@@ -58,6 +62,55 @@ export async function POST(req: Request, ctx: any) {
     s.round.editStatus = 'idle';
     s.round.editorId = undefined;
     s.round.editRequestedBy = undefined;
+  } else if (body.action === 'raise_hand') {
+    const { actorParticipantId } = body as { actorParticipantId: string };
+    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.participants = s.participants.map(p => p.id===actorParticipantId ? { ...p, handRaised: true } : p);
+  } else if (body.action === 'lower_hand') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId?: string; actorParticipantId: string };
+    const target = targetParticipantId || actorParticipantId;
+    if (!target) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    // Allow facilitator to lower anyone's hand; others only themselves
+    if (targetParticipantId && s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.participants = s.participants.map(p => p.id===target ? { ...p, handRaised: false } : p);
+  } else if (body.action === 'burst') {
+    const { actorParticipantId, kind } = body as { actorParticipantId: string; kind: 'celebrate'|'thumbs' };
+    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.activity = [
+      `B:${kind}:${actorParticipantId}:${Date.now()}`,
+      ...((s.activity ?? []).slice(0, 99))
+    ];
+  } else if (body.action === 'request_rejoin') {
+    const { participantId, name } = body as { participantId: string; name?: string };
+    const now = Date.now();
+    (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=> now - (r.removedAt||0) < 24*60*60*1000);
+    const wasRemoved = ((s as any).removedList as any[]).some((r:any)=> r.id===participantId);
+    if (!wasRemoved) return NextResponse.json({ error: 'not_removed' }, { status: 400 });
+    (s as any).rejoinRequests = (s as any).rejoinRequests ?? [];
+    const exists = (s as any).rejoinRequests.some((r:any)=>r.id===participantId);
+    if (!exists) (s as any).rejoinRequests.push({ id: participantId, name: name || 'Guest', at: now });
+  } else if (body.action === 'approve_rejoin') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    const reqs = ((s as any).rejoinRequests ?? []) as any[];
+    const req = reqs.find(r=>r.id===targetParticipantId);
+    (s as any).rejoinRequests = reqs.filter((r:any)=>r.id!==targetParticipantId);
+    (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=>r.id!==targetParticipantId);
+    // Re-add participant with requested name
+    s.participants.push({ id: targetParticipantId, name: (req?.name || 'Guest'), voted: false });
+  } else if (body.action === 'decline_rejoin') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    (s as any).rejoinRequests = ((s as any).rejoinRequests ?? []).filter((r:any)=>r.id!==targetParticipantId);
+  } else if (body.action === 'set_participant_color') {
+    const { actorParticipantId, color } = body as { actorParticipantId: string; color: string };
+    if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    s.participants = s.participants.map(p => p.id===actorParticipantId ? { ...p, color: String(color).slice(0, 64) } : p);
+  } else if (body.action === 'blackjack_event') {
+    // Record a lightweight event in activity. Clients gate on inviter/invitee IDs and recency.
+    const { payload } = body as { payload: any };
+    const entry = `BJ:${JSON.stringify({ ...payload, t: Date.now() })}`;
+    s.activity = [entry, ...((s.activity ?? []).slice(0, 99))];
   } else {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }

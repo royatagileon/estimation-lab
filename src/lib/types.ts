@@ -5,10 +5,13 @@ export type Participant = {
   name: string;
   voted: boolean;
   vote?: FibCard;
+  color?: string; // CSS color string for avatar background
+  handRaised?: boolean;
 };
 
 export type Round = {
   status: "idle"|"voting"|"revealed";
+  workType?: 'defect'|'enhancement'|'new-request'|'ktlo'|'compliance'|'kaizen'|'research'|'testing-qa';
   itemTitle?: string;
   itemDescription?: string;
   acceptanceCriteria?: string;
@@ -52,9 +55,11 @@ export type Session = {
   facilitatorId?: string;
   facilitatorToken?: string;
   finalizedItems?: Array<{
+    workType?: 'defect'|'enhancement'|'new-request'|'ktlo'|'compliance'|'kaizen'|'research'|'testing-qa';
     title: string;
     description?: string;
     acceptanceCriteria?: string;
+    tasks?: Array<{ id: string; text: string; status: 'pending'|'approved'|'rejected' }>; 
     value: string;            // finalized deck value
     average: number;          // numeric average before rounding
     decidedAt: number;
