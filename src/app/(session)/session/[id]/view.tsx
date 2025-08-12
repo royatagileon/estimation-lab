@@ -127,6 +127,8 @@ export function SessionView({ id }: { id: string }) {
 
   function enterGame() {
     setSecretActive(true);
+    // hide Play button while active
+    setSecretUnlocked(false);
     dealSymbols();
   }
 
@@ -138,6 +140,8 @@ export function SessionView({ id }: { id: string }) {
     setComparing(false);
     setShowWinToast(false);
     setAriaMessage('');
+    // hide Play button until sequence is entered again
+    setSecretUnlocked(false);
   }
 
   // Expose control API for facilitator override
@@ -612,11 +616,13 @@ export function SessionView({ id }: { id: string }) {
                 data-value={String(v)}
                 data-testid={`vote-tile-${String(v)}`}
                 className={`h-16 min-w-[56px] px-4 rounded-xl border text-base font-semibold select-none focus-ring grid place-items-center shadow transition ${
-                  selected
-                    ? 'bg-green-500 text-white border-green-600'
-                    : s.round.status==='voting'
-                      ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
-                      : 'bg-white/70 dark:bg-neutral-900/70 text-neutral-800 dark:text-neutral-100 hover:bg-white dark:hover:bg-neutral-900'
+                  secretActive
+                    ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
+                    : selected
+                      ? 'bg-green-500 text-white border-green-600'
+                      : s.round.status==='voting'
+                        ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
+                        : 'bg-white/70 dark:bg-neutral-900/70 text-neutral-800 dark:text-neutral-100 hover:bg-white dark:hover:bg-neutral-900'
                 }`}
                 aria-label={`vote ${v}`}
                 onClick={()=>{
@@ -630,35 +636,42 @@ export function SessionView({ id }: { id: string }) {
                 }}
               >
                 <span className="inline-flex items-center gap-2">
-                  {secretActive && symbols ? (
-                    <span className="text-2xl" aria-hidden>{symbols[deck.findIndex(d => String(d)===String(v))]}</span>
-                  ) : (
-                    String(v)
-                  )}
+                  {secretActive && symbols ? (()=>{
+                    const idx = deck.findIndex(d => String(d)===String(v));
+                    const show = revealed.includes(idx) || matched.has(idx);
+                    return show ? <span className="text-2xl" aria-hidden>{symbols[idx]}</span> : <>{String(v)}</>;
+                  })() : String(v)}
                 </span>
               </motion.button>
             );
           })}
         </div>
-        <div className="mt-2 relative">
-          <small className="muted">Tap your selection again to clear</small>
-          <span className="sr-only" role="status" aria-live="polite">{ariaMessage}</span>
-          {secretUnlocked && !secretActive && (
-            <button
-              aria-label="Play secret game"
-              data-testid="secret-toggle"
-              className="absolute -top-10 right-0 rounded-full border bg-white/80 px-3 py-1 text-xs"
-              onClick={()=> enterGame()}
-            >Play</button>
-          )}
-          {secretActive && (
-            <button
-              aria-label="Play secret game"
-              data-testid="secret-toggle"
-              className="absolute -top-10 right-0 rounded-full border bg-white/80 px-3 py-1 text-xs"
-              onClick={()=> exitGame()}
-            >Exit</button>
-          )}
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <small className="muted">Tap your selection again to clear</small>
+            <span className="sr-only" role="status" aria-live="polite">{ariaMessage}</span>
+          </div>
+          <div>
+            {secretUnlocked && !secretActive && s.round.status !== 'voting' && (
+              <button
+                aria-label="Play secret game"
+                data-testid="secret-toggle"
+                className="rounded-full border bg-white/80 px-3 py-1 text-xs"
+                onClick={()=> enterGame()}
+              >Play</button>
+            )}
+            {secretActive && (
+              <button
+                aria-label="Play secret game"
+                data-testid="secret-toggle"
+                className="rounded-full border bg-white/80 px-3 py-1 text-xs"
+                onClick={()=> exitGame()}
+              >Exit</button>
+            )}
+            {showWinToast && secretActive && (
+              <span className="ml-2 text-xs">You win! <button className="underline" onClick={()=>dealSymbols()}>Play again?</button></span>
+            )}
+          </div>
         </div>
 
         {isBusiness && (
