@@ -74,7 +74,22 @@ export async function POST(req: Request, ctx: any) {
     const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     if (s.facilitatorId === targetParticipantId) return NextResponse.json({ error: 'cannot_remove_facilitator' }, { status: 400 });
+    const removed = s.participants.find(p=>p.id===targetParticipantId);
     s.participants = s.participants.filter(p=>p.id !== targetParticipantId);
+    // Record a rejoin request slot
+    (s as any).removedRequests = (s as any).removedRequests ?? [];
+    (s as any).removedRequests.push({ id: targetParticipantId, name: removed?.name || 'Guest', at: Date.now() });
+  } else if (body.action === 'request_rejoin') {
+    const { participantId, name } = body as { participantId: string; name?: string };
+    (s as any).removedRequests = (s as any).removedRequests ?? [];
+    const exists = (s as any).removedRequests.some((r:any)=>r.id===participantId);
+    if (!exists) (s as any).removedRequests.push({ id: participantId, name: name || 'Guest', at: Date.now() });
+  } else if (body.action === 'approve_rejoin') {
+    const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
+    if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    (s as any).removedRequests = ((s as any).removedRequests ?? []).filter((r:any)=>r.id!==targetParticipantId);
+    // Re-add participant with fresh state
+    s.participants.push({ id: targetParticipantId, name: 'Guest', voted: false });
   } else if (body.action === 'set_participant_color') {
     const { actorParticipantId, color } = body as { actorParticipantId: string; color: string };
     if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });

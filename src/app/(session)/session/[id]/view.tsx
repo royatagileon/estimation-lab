@@ -575,6 +575,23 @@ export function SessionView({ id }: { id: string }) {
               );
             })}
           </ul>
+          {/* Rejoin Requests */}
+          {Boolean((s as any).removedRequests?.length) && (
+            <div className="mt-3 space-y-2">
+              {((s as any).removedRequests as any[]).map((r:any)=>(
+                <div key={r.id} className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 bg-orange-100 text-orange-900">
+                  <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-orange-400 text-white" aria-hidden>!</span>
+                  <span className="flex-1 truncate">{r.name} requests to rejoin</span>
+                  {iAmFacilitator && (
+                    <button className="rounded-full bg-orange-500 text-white px-3 py-1 text-xs" onClick={async()=>{
+                      await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'approve_rejoin', targetParticipantId: r.id, actorParticipantId: myPid }) });
+                      mutate();
+                    }}>Approve</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {/* Session code intentionally hidden per request */}
         {notJoined && (
@@ -582,6 +599,11 @@ export function SessionView({ id }: { id: string }) {
             <div className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11">
               <input className="flex-1 bg-transparent outline-none placeholder:italic placeholder:text-slate-400" placeholder="Enter your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
               <button disabled={joining || !displayName.trim()} className="rounded-full bg-emerald-500 text-white px-4 py-1.5 text-sm disabled:opacity-60" onClick={selfJoin}>{joining ? 'Joining…' : 'Join'}</button>
+              <button className="rounded-full bg-orange-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
+                // Request rejoin for removed users
+                await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'request_rejoin', participantId: localStorage.getItem('pid:'+s.id) || 'anon', name: displayName || 'Guest' }) });
+                mutate();
+              }}>Request</button>
             </div>
           </div>
         )}
