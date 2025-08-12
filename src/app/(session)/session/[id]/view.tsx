@@ -475,9 +475,7 @@ export function SessionView({ id }: { id: string }) {
                           </div>
                         );
                       })}
-                      <div>
-                        <button type="button" className="rounded-xl border px-3 py-2 text-sm" onClick={()=>setCriteria([...criteria, ''])}>Add criteria</button>
-                      </div>
+                      {/* Removed bottom add button; use green plus on each row */}
                     </div>
                   </div>
                   <div className="flex gap-2">
