@@ -126,10 +126,8 @@ export async function POST(req: NextRequest, ctx: any) {
       `Finalized "${s.round.itemTitle ?? s.title}" at ${String(res.rounded)}`,
       ...((s.activity ?? []).slice(0, 99))
     ];
-    // Keep working item on the left; remove approved tasks, keep pending/rejected for further refinement
-    s.round.status = 'idle';
-    s.round.results = undefined;
-    s.round.tasks = roundTasks.filter((t:any)=> t.status !== 'approved');
+    // Reset left rail to allow creating a new work item immediately
+    s.round = { status: 'idle' } as any;
     s.participants = s.participants.map(p=>({ ...p, voted:false, vote: undefined }));
   }
 

@@ -203,11 +203,21 @@ export function SessionView({ id }: { id: string }) {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">Title</label>
-                    <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
+                    <input
+                      className="w-full rounded-xl border px-3 py-2 focus-ring placeholder:italic placeholder:text-slate-400"
+                      value={editTitle}
+                      placeholder="Brief title of work item (e.g., 'Add date filter')"
+                      onChange={e=>setEditTitle(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Description</label>
-                    <textarea className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40" value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
+                    <textarea
+                      className="w-full rounded-xl border px-3 py-2 focus-ring min-h-40 placeholder:italic placeholder:text-slate-400"
+                      placeholder="Details and context (e.g., 'Users need to filter results by date to speed searches')."
+                      value={editDesc}
+                      onChange={e=>setEditDesc(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Acceptance criteria</label>
@@ -217,7 +227,12 @@ export function SessionView({ id }: { id: string }) {
                         return (
                           <div key={idx} className="space-y-1">
                             <div className={`flex items-center gap-2 ${confirm ? 'bg-red-50 dark:bg-red-900/20 rounded-lg p-1' : ''}`}>
-                              <input className="w-full rounded-xl border px-3 py-2 focus-ring" value={c} onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }} />
+                              <input
+                                className="w-full rounded-xl border px-3 py-2 focus-ring placeholder:italic placeholder:text-slate-400"
+                                placeholder="Completion conditions (e.g., 'Date filter works')."
+                                value={c}
+                                onChange={e=>{ const next=[...criteria]; next[idx]=e.target.value; setCriteria(next); }}
+                              />
                               <button
                                 type="button"
                                 aria-label="Add criteria below"
@@ -311,12 +326,18 @@ export function SessionView({ id }: { id: string }) {
                 return list.map((t:any) => (
                   <div key={t.id} className="group text-sm border rounded-lg p-2">
                     <div className="flex items-start gap-2">
-                      <textarea className="w-full rounded border px-2 py-1 bg-transparent outline-none resize-y min-h-[40px]" value={taskDrafts[t.id] ?? t.text} onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))} onBlur={async(e)=>{
+                      <textarea
+                        className="w-full px-2 py-1 bg-transparent outline-none resize-y min-h-[40px] placeholder:italic placeholder:text-slate-400"
+                        placeholder="enter text here…"
+                        value={taskDrafts[t.id] ?? t.text}
+                        onChange={e=>setTaskDrafts(prev=>({ ...prev, [t.id]: (e.target as HTMLTextAreaElement).value }))}
+                        onBlur={async(e)=>{
                         const val = (e.target as HTMLTextAreaElement).value;
                         await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'edit_task', taskId: t.id, text: val }) });
                         setTaskDrafts(prev=>{ const n={...prev}; delete n[t.id]; return n; });
                         mutate();
-                      }} />
+                      }}
+                      />
                       {iAmFacilitator && (
                         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {t.status!=='approved' && (
