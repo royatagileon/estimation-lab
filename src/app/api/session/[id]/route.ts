@@ -76,19 +76,30 @@ export async function POST(req: Request, ctx: any) {
     if (s.facilitatorId === targetParticipantId) return NextResponse.json({ error: 'cannot_remove_facilitator' }, { status: 400 });
     const removed = s.participants.find(p=>p.id===targetParticipantId);
     s.participants = s.participants.filter(p=>p.id !== targetParticipantId);
-    // Record a rejoin request slot
-    (s as any).removedRequests = (s as any).removedRequests ?? [];
-    (s as any).removedRequests.push({ id: targetParticipantId, name: removed?.name || 'Guest', at: Date.now() });
+    // Track removed identity for 24h; no request is created until user explicitly requests
+    const now = Date.now();
+    (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=> now - (r.removedAt||0) < 24*60*60*1000);
+    const exists = ((s as any).removedList as any[]).some((r:any)=> r.id===targetParticipantId);
+    if (!exists) {
+      ((s as any).removedList as any[]).push({ id: targetParticipantId, name: removed?.name || 'Guest', removedAt: now });
+    }
+    // Clear any stale request from this id
+    (s as any).rejoinRequests = ((s as any).rejoinRequests ?? []).filter((r:any)=> r.id !== targetParticipantId);
   } else if (body.action === 'request_rejoin') {
     const { participantId, name } = body as { participantId: string; name?: string };
-    (s as any).removedRequests = (s as any).removedRequests ?? [];
-    const exists = (s as any).removedRequests.some((r:any)=>r.id===participantId);
-    if (!exists) (s as any).removedRequests.push({ id: participantId, name: name || 'Guest', at: Date.now() });
+    const now = Date.now();
+    (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=> now - (r.removedAt||0) < 24*60*60*1000);
+    const wasRemoved = ((s as any).removedList as any[]).some((r:any)=> r.id===participantId);
+    if (!wasRemoved) return NextResponse.json({ error: 'not_removed' }, { status: 400 });
+    (s as any).rejoinRequests = (s as any).rejoinRequests ?? [];
+    const exists = (s as any).rejoinRequests.some((r:any)=>r.id===participantId);
+    if (!exists) (s as any).rejoinRequests.push({ id: participantId, name: name || 'Guest', at: now });
   } else if (body.action === 'approve_rejoin') {
     const { targetParticipantId, actorParticipantId } = body as { targetParticipantId: string; actorParticipantId: string };
     if (!actorParticipantId || s.facilitatorId !== actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-    (s as any).removedRequests = ((s as any).removedRequests ?? []).filter((r:any)=>r.id!==targetParticipantId);
-    // Re-add participant with fresh state
+    (s as any).rejoinRequests = ((s as any).rejoinRequests ?? []).filter((r:any)=>r.id!==targetParticipantId);
+    (s as any).removedList = ((s as any).removedList ?? []).filter((r:any)=>r.id!==targetParticipantId);
+    // Re-add participant with fresh state (name will be set by client on next heartbeat/join flow)
     s.participants.push({ id: targetParticipantId, name: 'Guest', voted: false });
   } else if (body.action === 'set_participant_color') {
     const { actorParticipantId, color } = body as { actorParticipantId: string; color: string };

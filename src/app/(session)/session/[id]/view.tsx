@@ -523,8 +523,8 @@ export function SessionView({ id }: { id: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
       <aside className="md:col-span-4 rounded-2xl border border-white/20 dark:border-neutral-800 bg-white/60 dark:bg-neutral-950/60 backdrop-blur p-5">
-        <h2 className="font-semibold mb-2">Participants</h2>
-        <div className="max-h-56 md:max-h-64 overflow-auto pr-1">
+        <h2 className="font-semibold mb-2">Participants <span className="text-xs text-slate-500">({s.participants.length})</span></h2>
+        <div className="max-h-48 overflow-auto pr-1">
           <ul className="space-y-2">
             {s.participants.map((p: any) => {
               const isFac = p.id===s.facilitatorId;
@@ -576,9 +576,9 @@ export function SessionView({ id }: { id: string }) {
             })}
           </ul>
           {/* Rejoin Requests */}
-          {Boolean((s as any).removedRequests?.length) && (
+          {Boolean((s as any).rejoinRequests?.length) && (
             <div className="mt-3 space-y-2">
-              {((s as any).removedRequests as any[]).map((r:any)=>(
+              {((s as any).rejoinRequests as any[]).map((r:any)=>(
                 <div key={r.id} className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11 bg-orange-100 text-orange-900">
                   <span className="inline-grid h-6 w-6 place-items-center rounded-full bg-orange-400 text-white" aria-hidden>!</span>
                   <span className="flex-1 truncate">{r.name} requests to rejoin</span>
@@ -598,12 +598,21 @@ export function SessionView({ id }: { id: string }) {
           <div className="mt-3">
             <div className="flex items-center gap-2 rounded-full border px-3 py-2 min-h-11">
               <input className="flex-1 bg-transparent outline-none placeholder:italic placeholder:text-slate-400" placeholder="Enter your name" value={displayName} onChange={e=>setDisplayName(e.target.value)} />
-              <button disabled={joining || !displayName.trim()} className="rounded-full bg-emerald-500 text-white px-4 py-1.5 text-sm disabled:opacity-60" onClick={selfJoin}>{joining ? 'Joining…' : 'Join'}</button>
-              <button className="rounded-full bg-orange-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
-                // Request rejoin for removed users
-                await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'request_rejoin', participantId: localStorage.getItem('pid:'+s.id) || 'anon', name: displayName || 'Guest' }) });
-                mutate();
-              }}>Request</button>
+              {Boolean((s as any).removedList?.length) ? (
+                <button className="rounded-full bg-orange-500 text-white px-3 py-1.5 text-sm" onClick={async()=>{
+                  const last = ((s as any).removedList as any[]).find((r:any)=> r.id === (localStorage.getItem('pid:'+s.id) || 'anon'));
+                  if (!last) return;
+                  const now = Date.now();
+                  if (now - (last.removedAt||0) >= 24*60*60*1000) {
+                    selfJoin();
+                    return;
+                  }
+                  await fetch(`/api/session/${s.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'request_rejoin', participantId: localStorage.getItem('pid:'+s.id) || 'anon', name: displayName || 'Guest' }) });
+                  mutate();
+                }}>Request</button>
+              ) : (
+                <button disabled={joining || !displayName.trim()} className="rounded-full bg-emerald-500 text-white px-4 py-1.5 text-sm disabled:opacity-60" onClick={selfJoin}>{joining ? 'Joining…' : 'Join'}</button>
+              )}
             </div>
           </div>
         )}
