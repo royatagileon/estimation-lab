@@ -88,17 +88,10 @@ export function SessionView({ id }: { id: string }) {
     }
   }, [s?.round?.status, unanimous, s?.id, s?.createdAt, s?.finalizedItems?.length]);
 
-  // ===== Secret Game State =====
-  const unlockSeq = useMemo(() => ['X','21','3','21','X'], []); // secret symbol game
-  const [unlockIndex, setUnlockIndex] = useState(0);
-  const [secretUnlocked, setSecretUnlocked] = useState(false);
-  const [secretActive, setSecretActive] = useState(false);
-  const [symbols, setSymbols] = useState<string[] | null>(null); // length 12 mapping deck index -> symbol
-  const [revealed, setRevealed] = useState<number[]>([]);
-  const [matched, setMatched] = useState<Set<number>>(new Set());
-  const [comparing, setComparing] = useState(false);
-  const [ariaMessage, setAriaMessage] = useState('');
-  const [showWinToast, setShowWinToast] = useState(false);
+  // Secret mini-game disabled for stability
+  const secretUnlocked = false;
+  const secretActive = false;
+  const ariaMessage = '';
 
   function strongShuffle<T>(arr: T[]): T[] {
     const a = arr.slice();
@@ -116,70 +109,16 @@ export function SessionView({ id }: { id: string }) {
   const symbolList = ['♦','♠','♣','♥','★','👍'] as const;
   const symbolName: Record<string,string> = { '♦': 'diamond', '♠': 'spade', '♣': 'club', '♥': 'heart', '★': 'star', '👍': 'thumbs up' };
 
-  function dealSymbols() {
-    const pairs = symbolList.flatMap(sym => [sym, sym]);
-    const deckLen = 12;
-    const pool = strongShuffle(pairs);
-    if (pool.length !== deckLen) return;
-    setSymbols(pool);
-    setRevealed([]);
-    setMatched(new Set());
-    setComparing(false);
-    setShowWinToast(false);
-  }
-
-  function enterGame() {
-    setSecretActive(true);
-    // hide Play button while active
-    setSecretUnlocked(false);
-    dealSymbols();
-  }
-
-  function exitGame() {
-    setSecretActive(false);
-    setSymbols(null);
-    setRevealed([]);
-    setMatched(new Set());
-    setComparing(false);
-    setShowWinToast(false);
-    setAriaMessage('');
-    // hide Play button until sequence is entered again
-    setSecretUnlocked(false);
-  }
+  function enterGame() { /* disabled */ }
+  function exitGame() { /* disabled */ }
 
   // Expose control API for facilitator override
-  useEffect(() => {
-    (window as any).refinementPokerSecretGame = {
-      end: () => exitGame(),
-    };
-    return () => {
-      if ((window as any).refinementPokerSecretGame) delete (window as any).refinementPokerSecretGame;
-    };
-  }, []);
+  // removed external API
 
   // Auto-exit when voting starts
-  useEffect(() => {
-    if (secretActive && s?.round?.status === 'voting') {
-      exitGame();
-    }
-  }, [secretActive, s?.round?.status]);
+  //
 
-  function processUnlockClick(v: string | number) {
-    if (secretActive) return; // disabled during game
-    const val = String(v);
-    if (val === unlockSeq[unlockIndex]) {
-      const next = unlockIndex + 1;
-      if (next >= unlockSeq.length) {
-        setSecretUnlocked(true);
-        setUnlockIndex(0);
-      } else {
-        setUnlockIndex(next);
-      }
-    } else {
-      // reset; allow overlap if 'X' clicked first
-      setUnlockIndex(val === unlockSeq[0] ? 1 : 0);
-    }
-  }
+  function processUnlockClick(_: string | number) { /* disabled */ }
 
   // Blackjack removed
   // Reactions removed
@@ -199,41 +138,9 @@ export function SessionView({ id }: { id: string }) {
   // (Removed older floating burst animation in favor of inline emoji with timeout)
 
 
-  async function handleTileClickGame(idx: number) {
-    if (!secretActive || !symbols) return;
-    if (comparing) return;
-    if (matched.has(idx)) return;
-    if (revealed.includes(idx)) return;
-    const nextRev = [...revealed, idx];
-    setRevealed(nextRev);
-    setAriaMessage(`tile revealed: ${symbolName[symbols[idx]]}`);
-    if (nextRev.length === 2) {
-      setComparing(true);
-      const [a, b] = nextRev;
-      const isMatch = symbols[a] === symbols[b];
-      if (isMatch) {
-        setTimeout(() => {
-          setMatched(prev => {
-            const n = new Set(prev); n.add(a); n.add(b); return n;
-          });
-          setRevealed([]);
-          setComparing(false);
-        }, 150);
-      } else {
-        setTimeout(() => {
-          setRevealed([]);
-          setComparing(false);
-        }, 800);
-      }
-    }
-  }
+  async function handleTileClickGame(_: number) { /* disabled */ }
 
-  useEffect(() => {
-    if (!secretActive || !symbols) return;
-    if (matched.size === 12) {
-      setShowWinToast(true);
-    }
-  }, [matched, secretActive, symbols]);
+  //
 
   if (isLoading) return <div>Loading session…</div>;
   if (!s) return <div>Session not found.</div>;
@@ -709,31 +616,20 @@ export function SessionView({ id }: { id: string }) {
                 data-value={String(v)}
                 data-testid={`vote-tile-${String(v)}`}
                 className={`h-16 min-w-[56px] px-4 rounded-xl border text-base font-semibold select-none focus-ring grid place-items-center shadow transition ${
-                  secretActive
-                    ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
-                    : selected
-                      ? 'bg-green-500 text-white border-green-600'
-                      : s.round.status==='voting'
-                        ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
-                        : 'bg-white/70 dark:bg-neutral-900/70 text-neutral-800 dark:text-neutral-100 hover:bg-white dark:hover:bg-neutral-900'
+                  selected
+                    ? 'bg-green-500 text-white border-green-600'
+                    : s.round.status==='voting'
+                      ? 'bg-white text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100'
+                      : 'bg-white/70 dark:bg-neutral-900/70 text-neutral-800 dark:text-neutral-100 hover:bg-white dark:hover:bg-neutral-900'
                 }`}
                 aria-label={`vote ${v}`}
                 onClick={()=>{
                   processUnlockClick(v as any);
-                  if (secretActive) {
-                    const idx = deck.findIndex(d => String(d)===String(v));
-                    handleTileClickGame(idx);
-                    return;
-                  }
                   vote(v as any);
                 }}
               >
                 <span className="inline-flex items-center gap-2">
-                  {secretActive && symbols ? (()=>{
-                    const idx = deck.findIndex(d => String(d)===String(v));
-                    const show = revealed.includes(idx) || matched.has(idx);
-                    return show ? <span className="text-2xl" aria-hidden>{symbols[idx]}</span> : <>{String(v)}</>;
-                  })() : String(v)}
+                  {String(v)}
                 </span>
               </motion.button>
             );
@@ -742,29 +638,10 @@ export function SessionView({ id }: { id: string }) {
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <small className="muted">Tap your selection again to clear</small>
-            <span className="sr-only" role="status" aria-live="polite">{ariaMessage}</span>
+            <span className="sr-only" role="status" aria-live="polite"></span>
           </div>
           <div>
-            {/* blackjack controls removed */}
-            {secretUnlocked && !secretActive && s.round.status !== 'voting' && (
-              <button
-                aria-label="Play secret game"
-                data-testid="secret-toggle"
-                className="rounded-full border bg-white/80 px-3 py-1 text-xs"
-                onClick={()=> enterGame()}
-              >Play</button>
-            )}
-            {secretActive && (
-              <button
-                aria-label="Play secret game"
-                data-testid="secret-toggle"
-                className="rounded-full border bg-white/80 px-3 py-1 text-xs"
-                onClick={()=> exitGame()}
-              >Exit</button>
-            )}
-            {showWinToast && secretActive && (
-              <span className="ml-2 text-xs">You win! <button className="underline" onClick={()=>dealSymbols()}>Play again?</button></span>
-            )}
+            {/* secret game controls removed */}
           </div>
         </div>
 
