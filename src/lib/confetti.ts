@@ -1,5 +1,6 @@
 let lastKey: string | null = null;
 export async function fireConfettiOnce(key: string) {
+  if (typeof window === 'undefined') return; // guard SSR
   if (lastKey === key) return;
   lastKey = key;
   const { default: confetti } = await import('canvas-confetti');

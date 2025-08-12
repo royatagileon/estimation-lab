@@ -93,21 +93,7 @@ export function SessionView({ id }: { id: string }) {
   const secretActive = false;
   const ariaMessage = '';
 
-  function strongShuffle<T>(arr: T[]): T[] {
-    const a = arr.slice();
-    const len = a.length;
-    const rand = new Uint32Array(len);
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(rand);
-    for (let i = len - 1; i > 0; i--) {
-      const r = rand[i] ?? Math.floor(Math.random() * (i + 1));
-      const j = r % (i + 1);
-      const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
-    }
-    return a;
-  }
-
-  const symbolList = ['♦','♠','♣','♥','★','👍'] as const;
-  const symbolName: Record<string,string> = { '♦': 'diamond', '♠': 'spade', '♣': 'club', '♥': 'heart', '★': 'star', '👍': 'thumbs up' };
+  // removed mini-game helpers
 
   function enterGame() { /* disabled */ }
   function exitGame() { /* disabled */ }
