@@ -79,6 +79,11 @@ export async function POST(req: Request, ctx: any) {
     const { actorParticipantId, color } = body as { actorParticipantId: string; color: string };
     if (!actorParticipantId) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     s.participants = s.participants.map(p => p.id===actorParticipantId ? { ...p, color: String(color).slice(0, 64) } : p);
+  } else if (body.action === 'blackjack_event') {
+    // Record a lightweight event in activity. Clients gate on inviter/invitee IDs and recency.
+    const { payload } = body as { payload: any };
+    const entry = `BJ:${JSON.stringify({ ...payload, t: Date.now() })}`;
+    s.activity = [entry, ...((s.activity ?? []).slice(0, 99))];
   } else {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
